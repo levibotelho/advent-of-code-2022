@@ -94,9 +94,9 @@ namespace AdventOfCode
 
 		class Instruction
 		{
-			public int Count { get; init; }
-			public int From { get; init; }
-			public int To { get; init; }
+			public int Count { get; }
+			public int From { get; }
+			public int To { get; }
 
 			public Instruction(string line)
 			{
