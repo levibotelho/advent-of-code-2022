@@ -14,6 +14,15 @@ namespace AdventOfCode
             var dirs = GetDirs(tree);
             var candidateSize = dirs.Where(x => x.Size <= 100000).Sum(x => x.Size);
             Console.WriteLine($"Total candidate directory size: {candidateSize}");
+
+            const long totalSpace = 70000000;
+            var usedSpace = tree.Size;
+            var availableSpace = totalSpace - usedSpace;
+            const long updateSpace = 30000000;
+            var requiredSpace = updateSpace - availableSpace;
+            Debug.Assert(requiredSpace > 0);
+            var deleteCandidate = dirs.OrderBy(x => x.Size).First(x => x.Size >= requiredSpace);
+            Console.WriteLine($"Delete candidate directory name: {deleteCandidate.Name}, size: {deleteCandidate.Size}");
         }
 
         static IReadOnlyList<Node> GetDirs(Node tree)
