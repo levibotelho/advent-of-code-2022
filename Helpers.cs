@@ -1,0 +1,22 @@
+﻿using System;
+namespace AdventOfCode
+{
+	public static class Helpers
+	{
+		public static List<string> GetLines()
+		{
+            Console.WriteLine("Paste input and then press <Enter> three times...");
+            var lines = new List<string>();
+            while (lines.Count < 2 || (lines[^1] != "" || lines[^2] != ""))
+            {
+                var line = Console.ReadLine();
+                if (line != null)
+                {
+                    lines.Add(line.Trim());
+                }
+            }
+            return lines;
+        }
+	}
+}
+
