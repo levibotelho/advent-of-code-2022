@@ -5,7 +5,7 @@ namespace AdventOfCode
 	{
 		public static IEnumerable<string> GetLines()
 		{
-            Console.WriteLine("Paste input and then press <Enter> three times...");
+            Console.WriteLine("Paste input followed by two blank lines...");
             var lines = new List<string>();
             while (lines.Count < 2 || lines[^1] != "" || lines[^2] != "")
             {
