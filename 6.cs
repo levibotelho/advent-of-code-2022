@@ -8,23 +8,25 @@ namespace AdventOfCode
 		public static void Run()
 		{
             var lines = GetLines();
-			var packetMarkerIndex = GetPacketMarkerIndex(lines.Single());
+			var packetMarkerIndex = GetMarkerIndex(lines.Single(), 4);
 			Console.WriteLine($"Start of packet marker after: {packetMarkerIndex}");
+            var messageMarkerIndex = GetMarkerIndex(lines.Single(), 14);
+            Console.WriteLine($"Start of message marker after: {messageMarkerIndex}");
         }
 
-		static int GetPacketMarkerIndex(string message)
+		static int GetMarkerIndex(string message, int distinctCharCount)
 		{
-			var buffer = new Queue<char>(4);
+			var buffer = new Queue<char>(distinctCharCount);
 			for (var i = 0; i < message.Length; i++)
 			{
                 var character = message[i];
                 buffer.Enqueue(character);
-                if (buffer.Count < 4)
+                if (buffer.Count < distinctCharCount)
 				{
 					continue;					
 				}
 				                
-				if (buffer.Distinct().Count() == 4)
+				if (buffer.Distinct().Count() == distinctCharCount)
 				{
 					// i = last character of buffer
 					return i + 1;
