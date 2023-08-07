@@ -15,21 +15,21 @@ namespace AdventOfCode
             Console.WriteLine($"Overlap count: {overlapCount}");
         }
 
-        static bool HasContain(((int, int), (int, int)) rangePair)
+        static bool HasContain((Range, Range) rangePair)
         {
             var a = rangePair.Item1;
             var b = rangePair.Item2;
-            return (a.Item1 <= b.Item1 && a.Item2 >= b.Item2) || (a.Item1 >= b.Item1 && a.Item2 <= b.Item2);
+            return (a.From <= b.From && a.To >= b.To) || (a.From >= b.From && a.To <= b.To);
         }
 
-        static bool HasOverlap(((int, int), (int, int)) rangePair)
+        static bool HasOverlap((Range, Range) rangePair)
         {
             var a = rangePair.Item1;
             var b = rangePair.Item2;
-            return (a.Item1 >= b.Item1 && a.Item1 <= b.Item2) || (b.Item1 >= a.Item1 && b.Item1 <= a.Item2);
+            return (a.From >= b.From && a.From <= b.To) || (b.From >= a.From && b.From <= a.To);
         }
 
-        static ((int, int), (int, int)) GetPairRanges(string assignment)
+        static (Range, Range) GetPairRanges(string assignment)
         {
             var split = assignment.Split(',');
             var a = GetPairRange(split[0]);
@@ -37,10 +37,12 @@ namespace AdventOfCode
             return (a, b);
         }
 
-        static (int, int) GetPairRange(string range)
+        static Range GetPairRange(string range)
         {
             var split = range.Split('-');
-            return (int.Parse(split[0]), int.Parse(split[1]));
+            return new Range(int.Parse(split[0]), int.Parse(split[1]));
         }
+
+        readonly record struct Range(int From, int To);
     }
 }

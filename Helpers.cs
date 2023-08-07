@@ -12,7 +12,7 @@ namespace AdventOfCode
                 var line = Console.ReadLine();
                 if (line != null)
                 {
-                    lines.Add(line.Trim());
+                    lines.Add(line);
                 }
             }
             return lines.SkipLast(2);
