@@ -12,7 +12,6 @@ namespace AdventOfCode
             calories.Sort();
             var sum = calories.TakeLast(3).Sum();
             Console.WriteLine($"Sum of top 3 calories: {sum}. Press any key to exit.");
-            Console.ReadLine();
         }
 
         static List<int> CalculateCalories()

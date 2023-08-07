@@ -18,8 +18,10 @@ switch (day)
     case 2:
         Two.Run();
         break;
+    case 3:
+        Three.Run();
+        break;
     default:
-        Console.WriteLine("Unsupported day. Press any key to exit.");
-        Console.ReadLine();
-        return;
+        Console.WriteLine("Unsupported day. Exiting.");
+        break;
 }

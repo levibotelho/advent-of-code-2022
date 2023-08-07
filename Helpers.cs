@@ -3,11 +3,11 @@ namespace AdventOfCode
 {
 	public static class Helpers
 	{
-		public static List<string> GetLines()
+		public static IEnumerable<string> GetLines()
 		{
             Console.WriteLine("Paste input and then press <Enter> three times...");
             var lines = new List<string>();
-            while (lines.Count < 2 || (lines[^1] != "" || lines[^2] != ""))
+            while (lines.Count < 2 || lines[^1] != "" || lines[^2] != "")
             {
                 var line = Console.ReadLine();
                 if (line != null)
@@ -15,7 +15,7 @@ namespace AdventOfCode
                     lines.Add(line.Trim());
                 }
             }
-            return lines;
+            return lines.SkipLast(2);
         }
 	}
 }
