@@ -8,28 +8,56 @@ namespace AdventOfCode
 		public static void Run()
 		{
             var lines = GetLines();
-			var diagram = GetDiagram(lines);
-			var instructions = GetInstructions(lines);
-			ApplyInstructions(diagram, instructions);
-			var topCrates = new string(diagram.Select(x => x.Peek()).ToArray());
-			Console.WriteLine($"Top crates: {topCrates}");
+			var topCrates9000 = GetTopCrates(lines, ApplyInstructions9000);
+            Console.WriteLine($"Top crates CM9000: {topCrates9000}");
+            var topCrates9001 = GetTopCrates(lines, ApplyInstructions9001);
+			Console.WriteLine($"Top crates CM9001: {topCrates9001}");
         }
 
-		static void ApplyInstructions(IReadOnlyList<Stack<char>> diagram, IEnumerable<Instruction> instructions)
+		static string GetTopCrates(IEnumerable<string> lines, Action<IReadOnlyList<Stack<char>>, IEnumerable<Instruction>> applyInstructions)
 		{
-			foreach (var instruction in instructions)
+            var diagram = GetDiagram(lines);
+            var instructions = GetInstructions(lines);
+			applyInstructions(diagram, instructions);            
+            return new string(diagram.Select(x => x.Peek()).ToArray());
+        }
+
+		static void ApplyInstructions9001(IReadOnlyList<Stack<char>> diagram, IEnumerable<Instruction> instructions)
+		{
+            var tmpStack = new Stack<char>();
+            foreach (var instruction in instructions)
 			{
 				var fromStack = diagram[instruction.From];
 				var toStack = diagram[instruction.To];
 				for (var i = 0; i < instruction.Count; i++)
 				{
 					var tmp = fromStack.Pop();
-					toStack.Push(tmp);
+					tmpStack.Push(tmp);
 				}
+
+				while (tmpStack.Count > 0)
+				{
+					var crate = tmpStack.Pop();
+					toStack.Push(crate);
+                }
 			}
 		}
 
-		static Stack<char>[] GetDiagram(IEnumerable<string> lines)
+        static void ApplyInstructions9000(IReadOnlyList<Stack<char>> diagram, IEnumerable<Instruction> instructions)
+        {
+            foreach (var instruction in instructions)
+            {
+                var fromStack = diagram[instruction.From];
+                var toStack = diagram[instruction.To];
+                for (var i = 0; i < instruction.Count; i++)
+                {
+                    var tmp = fromStack.Pop();
+                    toStack.Push(tmp);
+                }
+            }
+        }
+
+        static Stack<char>[] GetDiagram(IEnumerable<string> lines)
 		{
 			var rows = lines
 				.TakeWhile(x => x.Trim().StartsWith('['))
