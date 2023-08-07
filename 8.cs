@@ -3,22 +3,22 @@ using static AdventOfCode.Helpers;
 
 namespace AdventOfCode
 {
-	public static class Eight
-	{
-		public static void Run()
-		{
-			var lines = GetLines().Select(x => x.Trim());
+    public static class Eight
+    {
+        public static void Run()
+        {
+            var lines = GetLines().Select(x => x.Trim());
             var visibleCount = GetVisibleCount(lines);
-			Console.WriteLine($"Visible tree count: {visibleCount}");
+            Console.WriteLine($"Visible tree count: {visibleCount}");
             var scenicScore = GetHighestScenicScore(lines);
             Console.WriteLine($"Highest scenic score: {scenicScore}");
         }
 
-		static int GetHighestScenicScore(IEnumerable<string> lines)
-		{
+        static int GetHighestScenicScore(IEnumerable<string> lines)
+        {
             var trees = GetTrees(lines);
             // Would have been more efficient to use indexes only and skip linking, but this is fast and works.
-			LinkTrees(trees);
+            LinkTrees(trees);
             var highScore = -1;
             // Skip first/last rows due to them containing zero values
             foreach (var row in trees.Skip(1).SkipLast(1))
@@ -41,7 +41,7 @@ namespace AdventOfCode
             var count = 0;
             Tree? current = tree;
             do
-            {                
+            {
                 current = direction(current);
                 if (current == null)
                 {
@@ -52,8 +52,8 @@ namespace AdventOfCode
             return count;
         }
 
-		static void LinkTrees(Tree[][] trees)
-		{
+        static void LinkTrees(Tree[][] trees)
+        {
             for (var i = 0; i < trees.Length; i++)
             {
                 var row = trees[i];
@@ -80,9 +80,9 @@ namespace AdventOfCode
             }
         }
 
-		static int GetVisibleCount(IEnumerable<string> lines)
-		{
-			var trees = GetTrees(lines);
+        static int GetVisibleCount(IEnumerable<string> lines)
+        {
+            var trees = GetTrees(lines);
             var visibleCount = 0;
             for (var i = 0; i < trees.Length; i++)
             {
@@ -91,20 +91,21 @@ namespace AdventOfCode
                 visibleCount += GetUpdateVisible(row.Reverse());
             }
 
-			for (var i = 0; i < trees[0].Length; i++)
+            for (var i = 0; i < trees[0].Length; i++)
             {
                 visibleCount += GetUpdateVisible(IterateCol(trees, i));
                 visibleCount += GetUpdateVisible(IterateCol(trees, i).Reverse());
             }
 
-			return visibleCount;
+            return visibleCount;
         }
 
-		static Tree[][] GetTrees(IEnumerable<string> lines)
-		{
+        static Tree[][] GetTrees(IEnumerable<string> lines)
+        {
             return lines
                 .Select(x => x
-                    .Select(x => {
+                    .Select(x =>
+                    {
                         var height = (int)char.GetNumericValue(x);
                         return new Tree { Height = height };
                     })
@@ -113,46 +114,46 @@ namespace AdventOfCode
                 .ToArray();
         }
 
-		static int GetUpdateVisible(IEnumerable<Tree> line)
-		{
-			var count = 0;
-			var last = -1;
-			foreach (var tree in line)
-			{
-				if (tree.Height > last)
-				{
-					if (!tree.Checked)
-					{
-						tree.Checked = true;
-						count++;
-					}
-					last = tree.Height;
-				}
-				else if (tree.Height == last)
-				{
-					continue;
-				}
-			}
+        static int GetUpdateVisible(IEnumerable<Tree> line)
+        {
+            var count = 0;
+            var last = -1;
+            foreach (var tree in line)
+            {
+                if (tree.Height > last)
+                {
+                    if (!tree.Checked)
+                    {
+                        tree.Checked = true;
+                        count++;
+                    }
+                    last = tree.Height;
+                }
+                else if (tree.Height == last)
+                {
+                    continue;
+                }
+            }
             return count;
         }
 
-		static IEnumerable<T> IterateCol<T>(T[][] numbers, int i)
-		{
-			foreach (var row in numbers)
-			{
-				yield return row[i];
-			}
-		}
+        static IEnumerable<T> IterateCol<T>(T[][] numbers, int i)
+        {
+            foreach (var row in numbers)
+            {
+                yield return row[i];
+            }
+        }
 
-		class Tree
-		{
-			public int Height { get; init; }
-			public bool Checked { get; set; }
-			public Tree? Up { get; set; }
+        class Tree
+        {
+            public int Height { get; init; }
+            public bool Checked { get; set; }
+            public Tree? Up { get; set; }
             public Tree? Down { get; set; }
             public Tree? Left { get; set; }
             public Tree? Right { get; set; }
             public int ScenicScore { get; set; }
         }
-	}
+    }
 }

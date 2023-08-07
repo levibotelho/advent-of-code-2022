@@ -3,10 +3,10 @@ using static AdventOfCode.Helpers;
 
 namespace AdventOfCode
 {
-	public static class One
-	{
-		public static void Run()
-		{
+    public static class One
+    {
+        public static void Run()
+        {
             var calories = CalculateCalories();
             Console.WriteLine($"Max calories: {calories.Max()}");
             calories.Sort();
@@ -32,5 +32,5 @@ namespace AdventOfCode
                 return a;
             });
         }
-	}
+    }
 }

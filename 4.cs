@@ -3,10 +3,10 @@ using static AdventOfCode.Helpers;
 
 namespace AdventOfCode
 {
-	public static class Four
-	{
-		public static void Run()
-		{
+    public static class Four
+    {
+        public static void Run()
+        {
             var lines = GetLines();
             var ranges = lines.Select(GetPairRanges);
             var containCount = ranges.Count(HasContain);

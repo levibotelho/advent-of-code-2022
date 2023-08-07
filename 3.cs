@@ -3,10 +3,10 @@ using static AdventOfCode.Helpers;
 
 namespace AdventOfCode
 {
-	public static class Three
-	{
-		public static void Run()
-		{
+    public static class Three
+    {
+        public static void Run()
+        {
             var lines = GetLines();
             var result = lines.Select(GetSharedItemPriority).Sum();
             Console.WriteLine($"Part 1 priority sum: {result}");

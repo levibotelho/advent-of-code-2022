@@ -1,10 +1,10 @@
 ﻿using System;
 namespace AdventOfCode
 {
-	public static class Helpers
-	{
-		public static IEnumerable<string> GetLines()
-		{
+    public static class Helpers
+    {
+        public static IEnumerable<string> GetLines()
+        {
             Console.WriteLine("Paste input followed by two blank lines...");
             var lines = new List<string>();
             while (lines.Count < 2 || lines[^1] != "" || lines[^2] != "")
@@ -17,6 +17,6 @@ namespace AdventOfCode
             }
             return lines.SkipLast(2);
         }
-	}
+    }
 }
 
