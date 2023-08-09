@@ -1,3 +1,3 @@
 ﻿using AdventOfCode;
 
-Ten.Run();
+Nine.Run();
