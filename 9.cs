@@ -72,17 +72,17 @@ namespace AdventOfCode
             public Position Tail { get; private set; } = new Position(0, 0);
 
             public IReadOnlyList<Position> HeadTrace => headTrace;
-            public IReadOnlyList<Position> TailTrace => headTrace;
+            public IReadOnlyList<Position> TailTrace => tailTrace;
 
             public void ApplyMovement(Movement movement)
             {
                 if (movement.X != 0 && movement.Y == 0)
                 {
-                    Move(movement.X, Head.MoveX);
+                    Move(movement.X, (x) => Head.MoveX(x));
                 }
                 else if (movement.X == 0 && movement.Y != 0)
                 {
-                    Move(movement.Y, Head.MoveY);
+                    Move(movement.Y, (x) => Head.MoveY(x));
                 }
                 else
                 {
@@ -98,21 +98,17 @@ namespace AdventOfCode
                 {
                     var lastHead = Head;
                     Head = move(sign);
-                    RecalculateTail(lastHead);
+
+                    var deltaX = Math.Abs(Head.X - Tail.X);
+                    var deltaY = Math.Abs(Head.Y - Tail.Y);
+                    if (deltaX > 1 || deltaY > 1)
+                    {
+                        Tail = lastHead;
+                    }
+
                     headTrace.Add(Head);
                     tailTrace.Add(Tail);
                 }
-            }
-
-            void RecalculateTail(Position lastHead)
-            {
-                var deltaX = Math.Abs(Head.X - Tail.X);
-                var deltaY = Math.Abs(Head.Y - Tail.Y);
-                if (deltaX > 1 || deltaY > 1)
-                {
-                    Tail = lastHead;
-                }
-                tailTrace.Add(Tail);
             }
         }
 
@@ -134,7 +130,7 @@ namespace AdventOfCode
 
             public Position MoveY(int value)
             {
-                return new Position(X + value, Y);
+                return new Position(X, Y + value);
             }
         }
     }
