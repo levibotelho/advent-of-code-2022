@@ -82,10 +82,7 @@ namespace AdventOfCode
                 {
                     increaseWorryLevel(item);
                     item.WorryLevel /= worryLevelDivisor;
-                    // if (worryLevelDivisor == 1)
-                    // {
                     item.WorryLevel %= testDivisorCommonFactor;
-                    // }
                     var targetMonkey = test(item);
                     monkeys[targetMonkey].PassItem(item);
                     HandledCount++;
