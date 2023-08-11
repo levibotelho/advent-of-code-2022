@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using static AdventOfCode.Helpers;
 
 namespace AdventOfCode
@@ -7,24 +8,29 @@ namespace AdventOfCode
     {
         public static void Run()
         {
-            const int roundCount = 20;
-
             var lines = GetLines();
-            var monkeys = CreateMonkeys(lines);
+            var level3And20 = GetMonkeyBusinessLevel(lines, 3, 20);
+            Console.WriteLine($"Monkey business level 3/20: {level3And20}");
+            var level1And10000 = GetMonkeyBusinessLevel(lines, 1, 10_000);
+            Console.WriteLine($"Monkey business level 1/10000: {level1And10000}");
+        }
+
+        static long GetMonkeyBusinessLevel(IEnumerable<string> lines, int worryLevelDivisor, int roundCount)
+        {
+            var monkeys = CreateMonkeys(lines, worryLevelDivisor);
+            var testDivisorCommonFactor = monkeys.Select(x => x.TestDivisor).Aggregate(1L, (a, x) => a * x);
             for (var i = 0; i < roundCount; i++)
             {
                 foreach (var monkey in monkeys)
                 {
-                    monkey.HandleItems(monkeys);
+                    monkey.HandleItems(monkeys, testDivisorCommonFactor);
                 }
             }
 
-            var monkeyBusiness = monkeys.OrderByDescending(x => x.HandledCount).Take(2).Aggregate(1, (a, x) => a *= x.HandledCount);
-            var top = monkeys.OrderByDescending(x => x.HandledCount).Take(2).ToArray();
-            Console.WriteLine($"Monkey business level: {monkeyBusiness}");
+            return monkeys.OrderByDescending(x => x.HandledCount).Take(2).Aggregate(1L, (a, x) => a *= x.HandledCount);
         }
 
-        static Monkey[] CreateMonkeys(IEnumerable<string> lines)
+        static Monkey[] CreateMonkeys(IEnumerable<string> lines, int worryLevelDivisor)
         {
             const int definitionSize = 6;
             var definitions = new List<List<string>> { new List<string>(definitionSize) };
@@ -40,18 +46,18 @@ namespace AdventOfCode
                 }
             }
 
-            return definitions.Where(x => x.Any()).Select(x => new Monkey(x)).OrderBy(x => x.Id).ToArray();
+            return definitions.Where(x => x.Any()).Select(x => new Monkey(x, worryLevelDivisor)).OrderBy(x => x.Id).ToArray();
         }
 
         class Monkey
         {
-            const int worryLevelDivisor = 3;
-
             readonly Queue<Item> items;
             readonly Action<Item> increaseWorryLevel;
             readonly Func<Item, int> test;
 
-            public Monkey(IReadOnlyList<string> definition)
+            readonly int worryLevelDivisor;
+
+            public Monkey(IReadOnlyList<string> definition, int worryLevelDivisor)
             {
                 if (definition.Count != 6)
                 {
@@ -61,18 +67,25 @@ namespace AdventOfCode
                 Id = ParseId(definition[0]);
                 items = ParseItems(definition[1]);
                 increaseWorryLevel = ParseIncreaseWorryLevel(definition[2]);
-                test = ParseTest(definition[3], definition[4], definition[5]);
+                TestDivisor = GetLastInt(definition[3]);
+                test = ParseTest(TestDivisor, definition[4], definition[5]);
+                this.worryLevelDivisor = worryLevelDivisor;
             }
 
             public int Id { get; }
-            public int HandledCount { get; private set; }
+            public long TestDivisor { get; }
+            public long HandledCount { get; private set; }
 
-            public void HandleItems(Monkey[] monkeys)
+            public void HandleItems(Monkey[] monkeys, long testDivisorCommonFactor)
             {
                 while (items.TryDequeue(out var item))
                 {
                     increaseWorryLevel(item);
                     item.WorryLevel /= worryLevelDivisor;
+                    // if (worryLevelDivisor == 1)
+                    // {
+                    item.WorryLevel %= testDivisorCommonFactor;
+                    // }
                     var targetMonkey = test(item);
                     monkeys[targetMonkey].PassItem(item);
                     HandledCount++;
@@ -99,17 +112,17 @@ namespace AdventOfCode
 
             static Action<Item> ParseIncreaseWorryLevel(string line)
             {
-                static Func<Item, int> ParseToken(string token)
+                static Func<Item, long> ParseToken(string token)
                 {
                     return item => token switch
                     {
                         "old" => item.WorryLevel,
-                        _ when int.TryParse(token, out var val) => val,
+                        _ when long.TryParse(token, out var val) => val,
                         _ => throw new ArgumentOutOfRangeException(nameof(token))
                     };
                 }
 
-                static Func<int, int, int> ParseOp(string token)
+                static Func<long, long, long> ParseOp(string token)
                 {
                     return token switch
                     {
@@ -126,32 +139,35 @@ namespace AdventOfCode
                 return x =>
                 {
                     var level = opExpression(arg0Expression(x), arg1Expression(x));
+                    if (level < 0)
+                    {
+                        Debugger.Break();
+                    }
                     x.WorryLevel = level;
                 };
             }
 
-            static Func<Item, int> ParseTest(string testLine, string trueLine, string falseLine)
+            static Func<Item, int> ParseTest(long testDivisor, string trueLine, string falseLine)
             {
-                static int GetLastInt(string line)
-                {
-                    return int.Parse(line.Split(' ')[^1]);
-                }
+                var tossToTrue = GetLastInt(trueLine);
+                var tossToFalse = GetLastInt(falseLine);
+                return x => x.WorryLevel % testDivisor == 0 ? tossToTrue : tossToFalse;
+            }
 
-                var divisibleBy = GetLastInt(testLine);
-                var throwToTrue = GetLastInt(trueLine);
-                var throwToFalse = GetLastInt(falseLine);
-                return x => x.WorryLevel % divisibleBy == 0 ? throwToTrue : throwToFalse;
+            static int GetLastInt(string line)
+            {
+                return int.Parse(line.Split(' ')[^1]);
             }
         }
 
         class Item
         {
-            public Item(int worryLevel)
+            public Item(long worryLevel)
             {
                 WorryLevel = worryLevel;
             }
 
-            public int WorryLevel { get; set; }
+            public long WorryLevel { get; set; }
         }
     }
 }
