@@ -1,3 +1,6 @@
 ﻿using AdventOfCode;
 
-Twelve.Run();
+while (true)
+{
+    Thirteen.Run();
+}
