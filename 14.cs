@@ -5,22 +5,43 @@ namespace AdventOfCode
 {
     public static class Fourteen
     {
+        static readonly Point start = new(500, 0);
+
         public static void Run()
         {
             var lines = GetLines();
-            var grid = ConstructGrid(lines);
-            var sandCount = GetSandCount(grid);
-            Console.WriteLine($"Sand count: {sandCount}");
+            var fallOffSandCount = GetSandCountUntilFallOff(lines);
+            Console.WriteLine($"Fall off sand count: {fallOffSandCount}");
+            var fullSandCount = GetSandCountUntilFull(lines);
+            Console.WriteLine($"Full sand count: {fullSandCount}");
         }
 
-        static int GetSandCount(Grid grid)
+        static int GetSandCountUntilFull(IEnumerable<string> lines)
         {
-            var start = new Point(500, 0);
-            if (grid[start])
+            var grid = ConstructGrid(lines, true);
+            var (count, result) = GetSandResult(grid);
+            if (result == SandResult.OutOfBounds)
+            {
+                throw new InvalidOperationException("the sand fell out of bounds");
+            }
+
+            return count;
+        }
+
+        static int GetSandCountUntilFallOff(IEnumerable<string> lines)
+        {
+            var grid = ConstructGrid(lines, false);
+            var (count, result) = GetSandResult(grid);
+            if (result == SandResult.Full)
             {
                 throw new InvalidOperationException("the sand source point is full");
             }
 
+            return count;
+        }
+
+        static (int, SandResult) GetSandResult(Grid grid)
+        {
             var counter = 0;
             var current = start;
             while (true)
@@ -28,7 +49,7 @@ namespace AdventOfCode
                 var next = current.Down();
                 if (!grid.Contains(next))
                 {
-                    return counter;
+                    return (counter, SandResult.OutOfBounds);
                 }
 
                 if (!grid[next])
@@ -40,7 +61,7 @@ namespace AdventOfCode
                 next = current.DownLeft();
                 if (!grid.Contains(next))
                 {
-                    return counter;
+                    return (counter, SandResult.OutOfBounds);
                 }
 
                 if (!grid[next])
@@ -52,7 +73,7 @@ namespace AdventOfCode
                 next = current.DownRight();
                 if (!grid.Contains(next))
                 {
-                    return counter;
+                    return (counter, SandResult.OutOfBounds);
                 }
 
                 if (!grid[next])
@@ -64,15 +85,30 @@ namespace AdventOfCode
                 grid[current] = true;
                 counter++;
                 current = start;
+
+                if (grid[start])
+                {
+                    return (counter, SandResult.Full);
+                }
             }
         }
 
-        static Grid ConstructGrid(IEnumerable<string> inputLines)
+        static Grid ConstructGrid(IEnumerable<string> inputLines, bool addFloor)
         {
             var walls = inputLines
                 .Select(x => x.Split("->").Select(x => new Point(x)).ToArray())
-                .ToArray();
-            var points = walls.SelectMany(x => x).ToArray();
+                .ToList();
+            var points = walls.SelectMany(x => x).ToList();
+            if (addFloor)
+            {
+                var floor = CreateFloor(points);
+                walls.Add(floor);
+                foreach (var point in floor)
+                {
+                    points.Add(point);
+                }
+            }
+
             var grid = new Grid(points);
             foreach (var wall in walls)
             {
@@ -117,6 +153,24 @@ namespace AdventOfCode
             }
 
             return grid;
+        }
+
+        static Point[] CreateFloor(IReadOnlyCollection<Point> points)
+        {
+            var maxY = points.Max(x => x.Y);
+            var minX = points.Min(x => x.X);
+            var maxX = points.Max(x => x.X);
+            var floorY = maxY + 2;
+            // Add the height to either side to be sure that we have space for the pile.
+            var floorXStart = minX - floorY;
+            var floorXEnd = maxX + floorY;
+            return new[] { new Point(floorXStart, floorY), new Point(floorXEnd, floorY) };
+        }
+
+        enum SandResult
+        {
+            OutOfBounds,
+            Full,
         }
 
         readonly struct Point
