@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using static AdventOfCode.Helpers;
@@ -10,14 +9,6 @@ namespace AdventOfCode
     {
         public static void Run()
         {
-            // 1. Parse lines
-            // 2. Construct graph of all nodes
-            // 3. Construct shortest path calculations between (nonzero + root) nodes
-            // 4. DFS from root to every nonzero node, followed by every other nonzero node, etc.
-            //    stopping once we hit 30 iterations. At each step calculate the total flow over
-            //    all remaining steps from the current node and all parent nodes.
-            // 5. Take the highest flow rate.
-
             var lines = GetLines();
             var valves = ParseValves(lines);
             var pathLengths = GetPathLengths(valves);
@@ -27,43 +18,53 @@ namespace AdventOfCode
 
         static int GetGreatestFlow(IReadOnlyDictionary<string, Valve> valves, Dictionary<string, Dictionary<string, int>> pathLengths)
         {
-            static int Travel(
-                Valve current,
-                Valve to,
+            static int Visit(
+                Valve valve,
                 int flow,
                 int time,
-                HashSet<Valve> unvisited,
+                IEnumerable<Valve> valves,
                 Dictionary<string, Dictionary<string, int>> pathLengths
             )
             {
-                unvisited.Remove(to);
-                if (current.FlowRate > 0)
+                // Mark the valve as visited so that we don't return to it in future path explorations.
+                valve.Visited = true;
+
+                // Turn it on if it yields any flow.
+                if (valve.FlowRate > 0)
                 {
                     time--;
-                    flow += current.FlowRate * time;
+                    flow += valve.FlowRate * time;
                 }
 
+                // Explore all possibilities involving all remaining unvisited valves.
                 var max = flow;
-                foreach (var connection in current.Connections.Where(unvisited.Contains))
+                foreach (var next in valves.Where(x => !x.Visited))
                 {
-                    var travelTime = pathLengths[current.Id][connection.Id];
+                    // We only calculate path lengths to valves with nonzero flow. We don't want
+                    // to go to zero-flow valves.
+                    if (!pathLengths[valve.Id].TryGetValue(next.Id, out var travelTime))
+                    {
+                        continue;
+                    }
+
                     var arrivalTime = time - travelTime;
 
-                    // If we arrive with one minute left then we won't be able to travel or get a valve
-                    // open before time == 0.
-                    var connectionMax = arrivalTime > 1 ? Travel(to, connection, flow, arrivalTime, unvisited, pathLengths) : flow;
-                    max = Math.Max(max, connectionMax);
+                    // If we arrive with more than one minute left we can potentially extract more flow. If not
+                    // then we've calculated the maximum flow obtainable from this branch of the tree.
+                    var branchMax = arrivalTime > 1 ? Visit(next, flow, arrivalTime, valves, pathLengths) : flow;
+                    max = Math.Max(max, branchMax);
                 }
 
-                unvisited.Add(to);
+                // We're done exploring all possibilities where this valve is visited. Mark it as unvisited
+                // so that it can be revisited at a different time in future path explorations.
+                valve.Visited = false;
                 return max;
             }
 
             var flow = 0;
             var remainingMinutes = 30;
-            var unvisited = new HashSet<Valve>(pathLengths.Keys.Select(x => valves[x]));
             var start = valves["AA"];
-            return Travel(start, start, flow, remainingMinutes, unvisited, pathLengths);
+            return Visit(start, flow, remainingMinutes, valves.Values, pathLengths);
         }
 
         static Dictionary<string, Dictionary<string, int>> GetPathLengths(IReadOnlyDictionary<string, Valve> valves)
@@ -80,17 +81,23 @@ namespace AdventOfCode
             }
 
             var from = new Dictionary<string, Dictionary<string, int>>();
-            foreach (var valve in valves.Where(x => x.Key == "AA" || x.Value.FlowRate != 0))
+            var sourceValveIds = valves.Values.Where(x => x.Id == "AA" || x.FlowRate > 0).Select(x => x.Id);
+            foreach (var id in sourceValveIds)
             {
-                var id = valve.Value.Id;
-                var node = nodes[id];
-                from[id] = GetShortestPaths(node, nodes.Values);
+                CalculateShortestPathTree(nodes[id], nodes.Values);
+
+                // Only get shortest paths for other valves that have a nonzero flow rate. We never
+                // want to travel to a zero-flow valve.
+                var shortestPaths = nodes.Values
+                    .Where(x => valves[x.Id].FlowRate > 0 && x.Id != id)
+                    .ToDictionary(x => x.Id, x => x.Distance);
+                from[id] = shortestPaths;
             }
 
             return from;
         }
 
-        static Dictionary<string, int> GetShortestPaths(DijkstraNode start, IReadOnlyCollection<DijkstraNode> nodes)
+        static void CalculateShortestPathTree(DijkstraNode start, IReadOnlyCollection<DijkstraNode> nodes)
         {
             static void Visit(DijkstraNode node, HashSet<DijkstraNode> unvisited)
             {
@@ -119,7 +126,6 @@ namespace AdventOfCode
 
             start.Distance = 0;
             Visit(start, unvisited);
-            return nodes.ToDictionary(x => x.Id, x => x.Distance);
         }
 
         static IReadOnlyDictionary<string, Valve> ParseValves(IEnumerable<string> lines)
@@ -176,6 +182,7 @@ namespace AdventOfCode
             public string Id { get; }
             public int FlowRate { get; set; }
             public List<Valve> Connections { get; } = new();
+            public bool Visited { get; set; }
         }
 
         class DijkstraNode
