@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices.Marshalling;
 using System.Text.RegularExpressions;
 using static AdventOfCode.Helpers;
 
@@ -12,22 +13,63 @@ namespace AdventOfCode
             var lines = GetLines();
             var valves = ParseValves(lines);
             var pathLengths = GetPathLengths(valves);
-            var greatestFlow = GetGreatestFlow(valves, pathLengths);
+            GetGreatestFlowSolo(valves, pathLengths);
+            GetGreatestFlowWithElephant(valves, pathLengths);
+        }
+
+        static void GetGreatestFlowWithElephant(IReadOnlyDictionary<string, Valve> valves, Dictionary<string, Dictionary<string, int>> pathLengths)
+        {
+            var scores = new Dictionary<string, int>();
+            GetGreatestFlow(valves, pathLengths, 26, scores);
+
+            var nodeScores = scores
+                .Select(x => new
+                {
+                    Nodes = x.Key.Chunk(2).Select(x => new string(x)).Where(x => x != "AA").ToHashSet(),
+                    Score = x.Value
+                })
+                .OrderByDescending(x => x.Score)
+                .ToArray();
+
+            var complimentaryNodeScores = nodeScores
+                .Select(first =>
+                {
+                    var maxSecond = nodeScores.MaxBy(second => !first.Nodes.Any(firstNode => second.Nodes.Contains(firstNode)));
+                    var score = first.Score + (maxSecond?.Score ?? 0);
+                    return new { First = first.Nodes, Second = maxSecond, Score = score };
+                })
+                .OrderByDescending(x => x.Score)
+                .ToArray();
+
+            Console.WriteLine("Greatest flow with elephant: " + complimentaryNodeScores.Max(x => x.Score).ToString());
+        }
+
+        static void GetGreatestFlowSolo(IReadOnlyDictionary<string, Valve> valves, Dictionary<string, Dictionary<string, int>> pathLengths)
+        {
+            var greatestFlow = GetGreatestFlow(valves, pathLengths, 30, null);
             Console.WriteLine($"Greatest flow: {greatestFlow}");
         }
 
-        static int GetGreatestFlow(IReadOnlyDictionary<string, Valve> valves, Dictionary<string, Dictionary<string, int>> pathLengths)
+        static int GetGreatestFlow(
+            IReadOnlyDictionary<string, Valve> valves,
+            Dictionary<string, Dictionary<string, int>> pathLengths,
+            int duration,
+            Dictionary<string, int>? scores
+        )
         {
             static int Visit(
                 Valve valve,
                 int flow,
                 int time,
                 IEnumerable<Valve> valves,
-                Dictionary<string, Dictionary<string, int>> pathLengths
+                Dictionary<string, Dictionary<string, int>> pathLengths,
+                Stack<string>? trace,
+                Dictionary<string, int>? scores
             )
             {
                 // Mark the valve as visited so that we don't return to it in future path explorations.
                 valve.Visited = true;
+                trace?.Push(valve.Id);
 
                 // Turn it on if it yields any flow.
                 if (valve.FlowRate > 0)
@@ -51,20 +93,45 @@ namespace AdventOfCode
 
                     // If we arrive with more than one minute left we can potentially extract more flow. If not
                     // then we've calculated the maximum flow obtainable from this branch of the tree.
-                    var branchMax = arrivalTime > 1 ? Visit(next, flow, arrivalTime, valves, pathLengths) : flow;
+                    var branchMax = arrivalTime > 1 ? Visit(next, flow, arrivalTime, valves, pathLengths, trace, scores) : flow;
                     max = Math.Max(max, branchMax);
                 }
 
                 // We're done exploring all possibilities where this valve is visited. Mark it as unvisited
                 // so that it can be revisited at a different time in future path explorations.
+                if (trace != null && scores != null)
+                {
+                    var key = new string(trace.Order().SelectMany(x => x).ToArray());
+                    var scoreExists = scores.TryGetValue(key, out var score);
+                    if (!scoreExists || (scoreExists && flow > score))
+                    {
+                        scores[key] = flow;
+                    }
+                }
+
                 valve.Visited = false;
+                trace?.Pop();
                 return max;
             }
 
             var flow = 0;
-            var remainingMinutes = 30;
             var start = valves["AA"];
-            return Visit(start, flow, remainingMinutes, valves.Values, pathLengths);
+
+            Stack<string>? trace = null;
+            if (scores != null)
+            {
+                trace = new Stack<string>();
+            }
+
+            return Visit(
+                start,
+                flow,
+                duration,
+                valves.Values,
+                pathLengths,
+                trace,
+                scores
+            );
         }
 
         static Dictionary<string, Dictionary<string, int>> GetPathLengths(IReadOnlyDictionary<string, Valve> valves)
