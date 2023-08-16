@@ -69,26 +69,15 @@ namespace AdventOfCode
 
         static Dictionary<string, Dictionary<string, int>> GetPathLengths(IReadOnlyDictionary<string, Valve> valves)
         {
-            var nodes = valves.ToDictionary(x => x.Key, x => new DijkstraNode(x.Value.Id));
-            foreach (var valve in valves)
-            {
-                var node = nodes[valve.Value.Id];
-                foreach (var connection in valve.Value.Connections)
-                {
-                    var connectedNode = nodes[connection.Id];
-                    node.Connections.Add(connectedNode);
-                }
-            }
-
             var from = new Dictionary<string, Dictionary<string, int>>();
             var sourceValveIds = valves.Values.Where(x => x.Id == "AA" || x.FlowRate > 0).Select(x => x.Id);
             foreach (var id in sourceValveIds)
             {
-                CalculateShortestPathTree(nodes[id], nodes.Values);
+                CalculateShortestPathTree(valves[id], valves.Values);
 
                 // Only get shortest paths for other valves that have a nonzero flow rate. We never
                 // want to travel to a zero-flow valve.
-                var shortestPaths = nodes.Values
+                var shortestPaths = valves.Values
                     .Where(x => valves[x.Id].FlowRate > 0 && x.Id != id)
                     .ToDictionary(x => x.Id, x => x.Distance);
                 from[id] = shortestPaths;
@@ -97,9 +86,9 @@ namespace AdventOfCode
             return from;
         }
 
-        static void CalculateShortestPathTree(DijkstraNode start, IReadOnlyCollection<DijkstraNode> nodes)
+        static void CalculateShortestPathTree(Valve start, IEnumerable<Valve> nodes)
         {
-            static void Visit(DijkstraNode node, HashSet<DijkstraNode> unvisited)
+            static void Visit(Valve node, HashSet<Valve> unvisited)
             {
                 Debug.Assert(node.Distance != int.MaxValue);
                 foreach (var connection in node.Connections)
@@ -117,7 +106,7 @@ namespace AdventOfCode
                 Visit(next, unvisited);
             }
 
-            var unvisited = new HashSet<DijkstraNode>(nodes.Count);
+            var unvisited = new HashSet<Valve>(nodes.Count());
             foreach (var node in nodes)
             {
                 unvisited.Add(node);
@@ -183,17 +172,6 @@ namespace AdventOfCode
             public int FlowRate { get; set; }
             public List<Valve> Connections { get; } = new();
             public bool Visited { get; set; }
-        }
-
-        class DijkstraNode
-        {
-            public DijkstraNode(string id)
-            {
-                Id = id;
-            }
-
-            public string Id { get; }
-            public List<DijkstraNode> Connections { get; } = new();
             public int Distance { get; set; }
         }
 
