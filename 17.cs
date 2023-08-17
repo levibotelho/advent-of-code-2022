@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using static AdventOfCode.Helpers;
 
 namespace AdventOfCode
@@ -8,14 +9,24 @@ namespace AdventOfCode
         public static void Run()
         {
             var lines = GetLines();
+            var height2022 = GetHeightAfter(lines, 2022);
+            Console.WriteLine($"Height after 2022 blocks: {height2022}");
+            // var height1E12 = GetHeightAfter(lines, 1000000000000);
+            // Console.WriteLine($"Height after 1E12 blocks: {height1E12}");
+        }
+
+        static long GetHeightAfter(IEnumerable<string> lines, long blockCount)
+        {
             var shifts = GetShifts(lines).GetEnumerator();
-            var shapes = GetShapes();
+            var shapes = GetShapes().GetEnumerator();
             var chamber = new Chamber();
 
-            foreach (var shape in shapes.Take(2022))
+            for (var i = 0L; i < blockCount; i++)
             {
-                chamber.PlaceAtStart(shape);
+                shapes.MoveNext();
+                var shape = shapes.Current;
 
+                chamber.PlaceAtStart(shape);
                 while (true)
                 {
                     shifts.MoveNext();
@@ -30,8 +41,7 @@ namespace AdventOfCode
                 }
             }
 
-            // +1 because height is 0-indexed
-            Console.WriteLine($"Height after 2022 blocks: {chamber.GetHighestPoint() + 1}");
+            return chamber.MaxY + 1;
         }
 
         static IEnumerable<int> GetShifts(IEnumerable<string> line)
@@ -72,12 +82,11 @@ namespace AdventOfCode
         const int newOffsetX = 2;
         const int newOffsetY = 4;
 
-        readonly HashSet<Point> points = new();
+        readonly PointStore points = new();
 
         public void PlaceAtStart(Shape shape)
         {
-            var highest = GetHighestPoint();
-            shape.Place(newOffsetX, highest + newOffsetY);
+            shape.Place(newOffsetX, points.MaxY + newOffsetY);
         }
 
         public bool IsInBounds(Shape shape)
@@ -90,19 +99,129 @@ namespace AdventOfCode
             foreach (var point in shape.Points)
             {
                 points.Add(point);
+                points.DeleteUnreachablePoints(point.Y);
             }
         }
 
-        public int GetHighestPoint() => points.Any() ? points.Max(x => x.Y) : -1;
+        public long MaxY => points.MaxY;
     }
 
-    readonly record struct Point(int X, int Y);
+    class PointStore
+    {
+        readonly LinkedList<PointRow> rows = new();
+
+        public PointStore()
+        {
+            rows.AddFirst(new PointRow(0));
+        }
+
+        public long MaxY => rows.FirstOrDefault(x => !x.IsEmpty)?.Y ?? -1;
+
+        public void Add(Point point)
+        {
+            var didGetRow = TryGetRow(point.Y, out var row);
+            Debug.Assert(didGetRow);
+            row.Value.Add(point.X);
+        }
+
+        public bool Contains(Point point)
+        {
+            if (!TryGetRow(point.Y, out var row))
+            {
+                return false;
+            }
+
+            return row.Value.Contains(point.X);
+        }
+
+        public void DeleteUnreachablePoints(long fromY)
+        {
+            var didGetRow = TryGetRow(fromY, out var row);
+            Debug.Assert(didGetRow);
+            if (row.Value.IsFull)
+            {
+                // Shame that we can't just set next to null and cut the tail in one operation.
+                while (rows.Last!.Value.Y < fromY)
+                {
+                    rows.RemoveLast();
+                }
+            }
+        }
+
+        bool TryGetRow(long y, out LinkedListNode<PointRow> row)
+        {
+            var rowNode = rows.First;
+            while (true)
+            {
+                Debug.Assert(rowNode != null);
+                if (rowNode.Value.Y < y)
+                {
+                    rowNode = rows.AddFirst(new PointRow(rowNode.Value.Y + 1));
+                }
+                else if (rowNode.Value.Y > y)
+                {
+                    var previous = rowNode;
+                    rowNode = rowNode.Next;
+                    if (rowNode == null)
+                    {
+                        row = previous; // Row is discarded. Set to previous to avoid an allocation.
+                        return false;
+                    }
+                }
+                else
+                {
+                    row = rowNode;
+                    return true;
+                }
+            }
+        }
+
+        class PointRow
+        {
+            static readonly byte[] flags = new byte[]
+            {
+                1 << 0,
+                1 << 1,
+                1 << 2,
+                1 << 3,
+                1 << 4,
+                1 << 5,
+                1 << 6,
+            };
+
+            byte points;
+
+            public PointRow(long y)
+            {
+                Y = y;
+            }
+
+            public long Y { get; }
+            public bool IsFull => points == 0b0111_1111;
+            public bool IsEmpty => points == 0;
+
+            public void Add(int x)
+            {
+                var flag = flags[x];
+                Debug.Assert(!Contains(x));
+                points ^= flag;
+            }
+
+            public bool Contains(int x)
+            {
+                var flag = flags[x];
+                return (points & flag) > 0;
+            }
+        }
+    }
+
+    readonly record struct Point(int X, long Y);
 
     class Shape
     {
         readonly Point[] absolutePoints;
         int offsetX;
-        int offsetY;
+        long offsetY;
 
         public Shape(params Point[] points)
         {
@@ -116,7 +235,7 @@ namespace AdventOfCode
             return new Shape(absolutePoints);
         }
 
-        public void Place(int x, int y)
+        public void Place(int x, long y)
         {
             offsetX = x;
             offsetY = y;
