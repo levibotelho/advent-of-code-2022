@@ -9,18 +9,21 @@ namespace AdventOfCode
         public static void Run()
         {
             var lines = GetLines();
-            var height2022 = GetHeightAfter(lines, 2022);
-            Console.WriteLine($"Height after 2022 blocks: {height2022}");
-            // var height1E12 = GetHeightAfter(lines, 1000000000000);
-            // Console.WriteLine($"Height after 1E12 blocks: {height1E12}");
+            // var height2022 = GetHeightAfter(lines, 2022);
+            // Console.WriteLine($"Height after 2022 blocks: {height2022}");
+            var height1E12 = GetHeightAfter(lines, 1000000000000);
+            Console.WriteLine($"Height after 1E12 blocks: {height1E12}");
         }
 
         static long GetHeightAfter(IEnumerable<string> lines, long blockCount)
         {
+            const int shapeCount = 5;
+            var segmentSize = lines.First().Length * shapeCount;
             var shifts = GetShifts(lines).GetEnumerator();
             var shapes = GetShapes().GetEnumerator();
             var chamber = new Chamber();
 
+            var lastTotalHeight = 0L;
             for (var i = 0L; i < blockCount; i++)
             {
                 shapes.MoveNext();
@@ -38,6 +41,14 @@ namespace AdventOfCode
                         chamber.FixShape(shape);
                         break;
                     }
+                }
+
+                if ((i + 1) % segmentSize == 0)
+                {
+                    var totalHeight = chamber.MaxY + 1;
+                    var segmentHeight = totalHeight - lastTotalHeight;
+                    lastTotalHeight = totalHeight;
+                    Console.WriteLine("Height after segment: " + segmentHeight.ToString());
                 }
             }
 
