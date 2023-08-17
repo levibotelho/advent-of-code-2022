@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Net;
 using static AdventOfCode.Helpers;
 
 namespace AdventOfCode
@@ -70,16 +69,8 @@ namespace AdventOfCode
 
                             var additionalHeight = chamber.MaxY - fullSegmentsChamberHeight;
                             return fullSegmentsHeight + additionalHeight;
-
-                            // Console.WriteLine("First segment height: " + firstSegmentHeight);
-                            // Console.WriteLine("First segment blocks: " + firstSegmentBlocks);
-                            // Console.WriteLine("Repeating group height: " + repeatingSegmentHeight);
-                            // Console.WriteLine("Repeating group blocks: " + repeatingSegmentBlocks);
-                            // Console.WriteLine("Final height: " + finalHeight.ToString());
-                            // break;
                         }
                     }
-                    // Console.WriteLine("Height after segment: " + segmentHeight.ToString());
                 }
             }
 
