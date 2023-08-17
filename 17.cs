@@ -6,34 +6,45 @@ namespace AdventOfCode
 {
     public static class Seventeen
     {
+        static readonly Shape[] shapes = new Shape[] {
+            new Shape(new Point(0, 0), new Point(1, 0), new Point(2, 0), new Point(3, 0)),
+            new Shape(new Point(1, 0), new Point(0, 1), new Point(1, 1), new Point(2, 1), new Point(1, 2)),
+            new Shape(new Point(0, 0), new Point(1, 0), new Point(2, 0), new Point(2, 1), new Point(2, 2)),
+            new Shape(new Point(0, 0), new Point(0, 1), new Point(0, 2), new Point(0, 3)),
+            new Shape(new Point(0, 0), new Point(1, 0), new Point(0, 1), new Point(1, 1)),
+        };
+
         public static void Run()
         {
             var lines = GetLines();
-            // var height2022 = GetHeightAfter(lines, 2022);
-            // Console.WriteLine($"Height after 2022 blocks: {height2022}");
-            var height1E12 = GetHeightAfter(lines, 1000000000000);
-            Console.WriteLine($"Height after 1E12 blocks: {height1E12}");
+            var height2022 = GetHeightAfter(lines, 2022);
+            Console.WriteLine($"Height after 2022 blocks: {height2022}");
+            // var height1E12 = GetHeightAfter(lines, 1000000000000);
+            // Console.WriteLine($"Height after 1E12 blocks: {height1E12}");
         }
 
         static long GetHeightAfter(IEnumerable<string> lines, long blockCount)
         {
             const int shapeCount = 5;
             var segmentSize = lines.First().Length * shapeCount;
-            var shifts = GetShifts(lines).GetEnumerator();
-            var shapes = GetShapes().GetEnumerator();
+
+            var shifts = GetShifts(lines).ToArray();
             var chamber = new Chamber();
 
             var lastTotalHeight = 0L;
+            var iShape = 0;
+            var iShift = 0;
             for (var i = 0L; i < blockCount; i++)
             {
-                shapes.MoveNext();
-                var shape = shapes.Current;
+                var shape = shapes[iShape++];
+                iShape %= shapes.Length;
 
                 chamber.PlaceAtStart(shape);
                 while (true)
                 {
-                    shifts.MoveNext();
-                    var shift = shifts.Current;
+                    var shift = shifts[iShift++];
+                    iShift %= shifts.Length;
+
                     shape.ShiftIf(shift, 0, chamber.IsInBounds);
                     var didDrop = shape.ShiftIf(0, -1, chamber.IsInBounds);
                     if (!didDrop)
@@ -57,33 +68,12 @@ namespace AdventOfCode
 
         static IEnumerable<int> GetShifts(IEnumerable<string> line)
         {
-            var i = 0;
-            var firstLine = line.Single();
-            while (true)
+            return line.Single().Select(x => x switch
             {
-                yield return firstLine[i++ % firstLine.Length] switch
-                {
-                    '>' => 1,
-                    '<' => -1,
-                    _ => throw new ArgumentOutOfRangeException(nameof(line))
-                };
-            }
-        }
-
-        static IEnumerable<Shape> GetShapes()
-        {
-            var shapes = new Shape[] {
-                new Shape(new Point(0, 0), new Point(1, 0), new Point(2, 0), new Point(3, 0)),
-                new Shape(new Point(1, 0), new Point(0, 1), new Point(1, 1), new Point(2, 1), new Point(1, 2)),
-                new Shape(new Point(0, 0), new Point(1, 0), new Point(2, 0), new Point(2, 1), new Point(2, 2)),
-                new Shape(new Point(0, 0), new Point(0, 1), new Point(0, 2), new Point(0, 3)),
-                new Shape(new Point(0, 0), new Point(1, 0), new Point(0, 1), new Point(1, 1)),
-            };
-            var i = 0;
-            while (true)
-            {
-                yield return shapes[i++ % shapes.Length].Clone();
-            }
+                '>' => 1,
+                '<' => -1,
+                _ => throw new ArgumentOutOfRangeException(nameof(line))
+            });
         }
     }
 
@@ -121,38 +111,35 @@ namespace AdventOfCode
     {
         readonly LinkedList<PointRow> rows = new();
 
-        public PointStore()
-        {
-            rows.AddFirst(new PointRow(0));
-        }
-
-        public long MaxY => rows.FirstOrDefault(x => !x.IsEmpty)?.Y ?? -1;
+        public long MaxY { get; private set; } = -1;
 
         public void Add(Point point)
         {
+            var rowsToAdd = point.Y - MaxY;
+            for (var i = 0; i < rowsToAdd; i++)
+            {
+                rows.AddFirst(new PointRow());
+                MaxY++;
+            }
+
             var didGetRow = TryGetRow(point.Y, out var row);
             Debug.Assert(didGetRow);
-            row.Value.Add(point.X);
+            row.Value = row.Value.Add(point.X);
         }
 
         public bool Contains(Point point)
         {
-            if (!TryGetRow(point.Y, out var row))
-            {
-                return false;
-            }
-
-            return row.Value.Contains(point.X);
+            return TryGetRow(point.Y, out var row) && row.Value.Contains(point.X);
         }
 
         public void DeleteUnreachablePoints(long fromY)
         {
-            var didGetRow = TryGetRow(fromY, out var row);
+            var didGetRow = TryGetRow(fromY, out var fullRow);
             Debug.Assert(didGetRow);
-            if (row.Value.IsFull)
+            if (fullRow.Value.IsFull)
             {
                 // Shame that we can't just set next to null and cut the tail in one operation.
-                while (rows.Last!.Value.Y < fromY)
+                while (rows.Last != fullRow)
                 {
                     rows.RemoveLast();
                 }
@@ -161,33 +148,41 @@ namespace AdventOfCode
 
         bool TryGetRow(long y, out LinkedListNode<PointRow> row)
         {
+            var rowY = MaxY;
             var rowNode = rows.First;
+            if (rowNode == null)
+            {
+                // Only happens before locking in the first shape.
+                row = new LinkedListNode<PointRow>(new PointRow());
+                return false;
+            }
+
             while (true)
             {
-                Debug.Assert(rowNode != null);
-                if (rowNode.Value.Y < y)
+                if (rowY > y)
                 {
-                    rowNode = rows.AddFirst(new PointRow(rowNode.Value.Y + 1));
-                }
-                else if (rowNode.Value.Y > y)
-                {
-                    var previous = rowNode;
+                    // A row less than the current row was requested. Move back one.
                     rowNode = rowNode.Next;
-                    if (rowNode == null)
-                    {
-                        row = previous; // Row is discarded. Set to previous to avoid an allocation.
-                        return false;
-                    }
+                    rowY--;
+                    Debug.Assert(rowNode != null, "a row lower than the lowest row should never be requested");
+                }
+                else if (rowY < y)
+                {
+                    // A row greater than the greatest row was requested.
+                    Debug.Assert(rows.First != null);
+                    row = rows.First; // Discarded, value doesn't matter.
+                    return false;
                 }
                 else
                 {
+                    // The row was found.
                     row = rowNode;
                     return true;
                 }
             }
         }
 
-        class PointRow
+        readonly struct PointRow
         {
             static readonly byte[] flags = new byte[]
             {
@@ -200,25 +195,26 @@ namespace AdventOfCode
                 1 << 6,
             };
 
-            byte points;
+            readonly byte points;
 
-            public PointRow(long y)
+            public PointRow() { }
+
+            private PointRow(byte points)
             {
-                Y = y;
+                this.points = points;
             }
 
-            public long Y { get; }
-            public bool IsFull => points == 0b0111_1111;
-            public bool IsEmpty => points == 0;
+            public readonly bool IsFull => points == 0b0111_1111;
+            public readonly bool IsEmpty => points == 0;
 
-            public void Add(int x)
+            public readonly PointRow Add(int x)
             {
                 var flag = flags[x];
                 Debug.Assert(!Contains(x));
-                points ^= flag;
+                return new PointRow((byte)(points ^ flag));
             }
 
-            public bool Contains(int x)
+            public readonly bool Contains(int x)
             {
                 var flag = flags[x];
                 return (points & flag) > 0;
