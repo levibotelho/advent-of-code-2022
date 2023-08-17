@@ -25,6 +25,19 @@ namespace AdventOfCode
 
         static long InferHeight(IEnumerable<string> lines, long blockCount)
         {
+            // This is based on the intuition that every so often we'll run through the full
+            // cycle of (jet movements * rocks) which will form a large shape that repeats
+            // over and over again. These shapes won't always add the same height as they may
+            // be stacked on different surfaces, but I assume that over a long enough period
+            // a larger "super shape" with an identical height will repeat itself. This finds
+            // that super shape by looking at repeating height patterns after the first large
+            // shape has been placed (due to it being on a flat surface that won't reappear).
+            // It then multiplies its height and stacks on final rocks to determine the result.
+            //
+            // It might have been more efficient to create the first large shape and stack those
+            // on top of each other rather than individual rocks, but this solution required less
+            // coding and ran in seconds on the example and less than a minute on the test input.
+
             const int shapeCount = 5;
             var segmentBlockCount = lines.First().Length * shapeCount;
             var segmentHeights = new List<long>();
