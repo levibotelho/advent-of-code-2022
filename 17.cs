@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Net;
 using static AdventOfCode.Helpers;
 
 namespace AdventOfCode
@@ -17,53 +18,107 @@ namespace AdventOfCode
         public static void Run()
         {
             var lines = GetLines();
-            var height2022 = GetHeightAfter(lines, 2022);
+            var height2022 = CalculateHeightDirectly(lines, 2022);
             Console.WriteLine($"Height after 2022 blocks: {height2022}");
-            // var height1E12 = GetHeightAfter(lines, 1000000000000);
-            // Console.WriteLine($"Height after 1E12 blocks: {height1E12}");
+            var height1E12 = InferHeight(lines, 1000000000000);
+            Console.WriteLine($"Height after 1E12 blocks: {height1E12}");
         }
 
-        static long GetHeightAfter(IEnumerable<string> lines, long blockCount)
+        static long InferHeight(IEnumerable<string> lines, long blockCount)
         {
             const int shapeCount = 5;
-            var segmentSize = lines.First().Length * shapeCount;
+            var segmentBlockCount = lines.First().Length * shapeCount;
+            var segmentHeights = new List<long>();
 
             var shifts = GetShifts(lines).ToArray();
             var chamber = new Chamber();
-
             var lastTotalHeight = 0L;
             var iShape = 0;
             var iShift = 0;
             for (var i = 0L; i < blockCount; i++)
             {
-                var shape = shapes[iShape++];
-                iShape %= shapes.Length;
+                AddBlock(chamber, shifts, ref iShape, ref iShift);
 
-                chamber.PlaceAtStart(shape);
-                while (true)
-                {
-                    var shift = shifts[iShift++];
-                    iShift %= shifts.Length;
-
-                    shape.ShiftIf(shift, 0, chamber.IsInBounds);
-                    var didDrop = shape.ShiftIf(0, -1, chamber.IsInBounds);
-                    if (!didDrop)
-                    {
-                        chamber.FixShape(shape);
-                        break;
-                    }
-                }
-
-                if ((i + 1) % segmentSize == 0)
+                if ((i + 1) % segmentBlockCount == 0)
                 {
                     var totalHeight = chamber.MaxY + 1;
                     var segmentHeight = totalHeight - lastTotalHeight;
+                    segmentHeights.Add(segmentHeight);
                     lastTotalHeight = totalHeight;
-                    Console.WriteLine("Height after segment: " + segmentHeight.ToString());
+                    if (segmentHeights.Count > 1 && segmentHeights.Count % 2 == 1)
+                    {
+                        var halfLength = (segmentHeights.Count - 1) / 2;
+                        var firstHalf = segmentHeights.Skip(1).Take(halfLength).ToArray();
+                        var secondHalf = segmentHeights.Skip(1 + halfLength).ToArray();
+                        if (Enumerable.SequenceEqual(firstHalf, secondHalf))
+                        {
+                            var firstSegmentHeight = segmentHeights[0];
+                            var firstSegmentBlocks = segmentBlockCount;
+                            var repeatingSegmentHeight = firstHalf.Sum();
+                            var repeatingSegmentBlocks = segmentBlockCount * halfLength;
+
+                            var remainingBlocksAfterFirst = blockCount - firstSegmentBlocks;
+                            var remainingBlocksAtEnd = remainingBlocksAfterFirst % repeatingSegmentBlocks;
+                            var repeatingSegmentCount = remainingBlocksAfterFirst / repeatingSegmentBlocks;
+
+                            var fullSegmentsHeight = firstSegmentHeight + (repeatingSegmentHeight * repeatingSegmentCount);
+                            var fullSegmentsChamberHeight = chamber.MaxY;
+                            for (var j = 0; j < remainingBlocksAtEnd; j++)
+                            {
+                                AddBlock(chamber, shifts, ref iShape, ref iShift);
+                            }
+
+                            var additionalHeight = chamber.MaxY - fullSegmentsChamberHeight;
+                            return fullSegmentsHeight + additionalHeight;
+
+                            // Console.WriteLine("First segment height: " + firstSegmentHeight);
+                            // Console.WriteLine("First segment blocks: " + firstSegmentBlocks);
+                            // Console.WriteLine("Repeating group height: " + repeatingSegmentHeight);
+                            // Console.WriteLine("Repeating group blocks: " + repeatingSegmentBlocks);
+                            // Console.WriteLine("Final height: " + finalHeight.ToString());
+                            // break;
+                        }
+                    }
+                    // Console.WriteLine("Height after segment: " + segmentHeight.ToString());
                 }
             }
 
+            return 0;
+        }
+
+        static long CalculateHeightDirectly(IEnumerable<string> lines, long blockCount)
+        {
+            var shifts = GetShifts(lines).ToArray();
+            var chamber = new Chamber();
+            var iShape = 0;
+            var iShift = 0;
+            for (var i = 0L; i < blockCount; i++)
+            {
+                AddBlock(chamber, shifts, ref iShape, ref iShift);
+            }
+
             return chamber.MaxY + 1;
+        }
+
+        static void AddBlock(Chamber chamber, int[] shifts, ref int iShape, ref int iShift)
+        {
+            var shape = shapes[iShape++];
+            iShape %= shapes.Length;
+
+            chamber.PlaceAtStart(shape);
+            while (true)
+            {
+                var shift = shifts[iShift++];
+                iShift %= shifts.Length;
+
+                shape.ShiftIf(shift, 0, chamber.IsInBounds);
+                var didDrop = shape.ShiftIf(0, -1, chamber.IsInBounds);
+                if (!didDrop)
+                {
+                    chamber.FixShape(shape);
+                    break;
+                }
+            }
         }
 
         static IEnumerable<int> GetShifts(IEnumerable<string> line)
