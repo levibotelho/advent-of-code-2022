@@ -15,381 +15,150 @@ namespace AdventOfCode
 
         static void PrintExteriorSurface(IEnumerable<string> lines)
         {
-            // TODO: Tried 3314, was too high. Probably counting blocks inside spaces inside other blocks.
-            // Need to use flood fill.
+            var cubes = GetCubes(lines).ToArray();
 
-            var cubes = GetOrderedCubes(lines);
+            // +1 for length +1 for flood fill margin
+            var sizeX = cubes.Max(x => x.X) + 2;
+            var sizeY = cubes.Max(x => x.Y) + 2;
+            var sizeZ = cubes.Max(x => x.Z) + 2;
+            var nodes = new Node[sizeX, sizeY, sizeZ];
             foreach (var cube in cubes)
             {
-                if (cube == null)
-                {
-                    continue;
-                }
-
-                var (sharedFaceCubes, sharedEdgeCubes) = GetNeighboringCubes(cube, cubes);
-
-                // We link the current cube to its neighboring cubes but not the other way around.
-                // This is because we'll do the same when we iterate over the other cube's neighbors.
-                // It's a little less efficient but lets us avoid tracking which cubes we've linked.
-                UpdateFaceLinks(cube, sharedFaceCubes);
-                UpdateEdgeLinks(cube, sharedEdgeCubes);
+                nodes[cube.X, cube.Y, cube.Z] = cube;
             }
 
-            PrintCubes(cubes);
-
-            var exposedFaceCount = CountExposedFaces(cubes);
-            Console.WriteLine($"Exterior surface area: {exposedFaceCount}");
-        }
-
-        static void PrintCubes(Cube[,,] cubes)
-        {
-            foreach (var cube in cubes)
+            for (var x = 0; x < nodes.GetLength(0); x++)
             {
-                if (cube == null)
+                for (var y = 0; y < nodes.GetLength(1); y++)
                 {
-                    continue;
-                }
-
-                Console.WriteLine($"Cube ({cube.X},{cube.Y},{cube.Z})");
-                for (var i = 0; i < 6; i++)
-                {
-                    var face = cube[i];
-                    Console.WriteLine($"\tFace {i} - Connections: {face.Connections.Count}");
-                }
-                Console.WriteLine();
-            }
-        }
-
-        static int CountExposedFaces(Cube[,,] cubes)
-        {
-            // Find cubes by iterating along the x-axis, taking unmarked instances, and starting from
-            // the leftmost side (2). This ensures that we always start iterating on the outside of
-            // each cube cluster/graph component.
-
-            var faceCount = 0;
-            for (var x = 0; x < cubes.GetLength(0); x++)
-            {
-                for (var y = 0; y < cubes.GetLength(1); y++)
-                {
-                    for (var z = 0; z < cubes.GetLength(2); z++)
+                    for (var z = 0; z < nodes.GetLength(2); z++)
                     {
-                        var cube = cubes[x, y, z];
-                        if (cube == null || cube.Visited)
-                        {
-                            continue;
-                        }
-
-                        var startingFace = cube[2];
-
-                        // Blocks completely hidden by other blocks will not be connected on the graph,
-                        // however we end up seeing them here.
-                        if (startingFace.IsHidden)
-                        {
-                            continue;
-                        }
-
-                        faceCount += CountFacesInComponent(startingFace);
+                        nodes[x, y, z] ??= new Node(x, y, z, false);
                     }
                 }
             }
 
-            return faceCount;
-        }
-
-        static int CountFacesInComponent(Face face)
-        {
-            static int Count(Face face, int runningCount)
+            static void Visit(Node current, Action<Node> markCubeVisited, Node[,,] nodes)
             {
-                Debug.Assert(!face.IsHidden);
-                if (face.Visited)
+                if (current.IsCube)
                 {
-                    return runningCount;
+                    markCubeVisited(current);
+                    return;
                 }
 
-                face.SetVisited();
-                runningCount++;
-                foreach (var connection in face.Connections)
+                if (current.IsVisited)
                 {
-                    runningCount = Count(connection, runningCount);
+                    return;
                 }
 
-                return runningCount;
-            }
+                current.IsVisited = true;
 
-            return Count(face, 0);
-        }
-
-        static void UpdateEdgeLinks(Cube cube, IEnumerable<Cube> sharedEdge)
-        {
-            foreach (var other in sharedEdge)
-            {
-                // Get the two faces on cube that share the edge with other.
-                var sharedEdgeFaces = new List<Face>(2);
-                if (other.X < cube.X)
+                if (current.X > 0)
                 {
-                    // Other cube is to the left, the edge must touch face 2.
-                    sharedEdgeFaces.Add(cube[2]);
-                }
-                else if (other.X > cube.X)
-                {
-                    sharedEdgeFaces.Add(cube[3]);
+                    Visit(nodes[current.X - 1, current.Y, current.Z], x => { x.IsVisitedXMinus = true; }, nodes);
                 }
 
-                if (other.Y < cube.Y)
+                if (current.X < nodes.GetLength(0) - 1)
                 {
-                    sharedEdgeFaces.Add(cube[1]);
-                }
-                else if (other.Y > cube.Y)
-                {
-                    sharedEdgeFaces.Add(cube[4]);
+                    Visit(nodes[current.X + 1, current.Y, current.Z], x => { x.IsVisitedXPlus = true; }, nodes);
                 }
 
-                if (other.Z < cube.Z)
+                if (current.Y > 0)
                 {
-                    sharedEdgeFaces.Add(cube[0]);
-                }
-                else if (other.Z > cube.Z)
-                {
-                    sharedEdgeFaces.Add(cube[5]);
+                    Visit(nodes[current.X, current.Y - 1, current.Z], x => { x.IsVisitedYMinus = true; }, nodes);
                 }
 
-                Debug.Assert(sharedEdgeFaces.Count == 2);
-
-                // Disconnect the shared faces from one another, and connect them to the face on the
-                // other cube that is opposite to the face from which they are being disconnected.
-                sharedEdgeFaces[0].Disconnect(sharedEdgeFaces[1]);
-                sharedEdgeFaces[1].Disconnect(sharedEdgeFaces[0]);
-                sharedEdgeFaces[0].TryConnect(other[sharedEdgeFaces[1].GetOppositeIndex()]);
-                sharedEdgeFaces[1].TryConnect(other[sharedEdgeFaces[0].GetOppositeIndex()]);
-            }
-        }
-
-        static void UpdateFaceLinks(Cube cube, IEnumerable<Cube> sharedFace)
-        {
-            foreach (var other in sharedFace)
-            {
-                // Get the index of the shared face on each cube.
-                var deltaX = other.X - cube.X;
-                var deltaY = other.Y - cube.Y;
-                var deltaZ = other.Z - cube.Z;
-
-                // As both cubes share a full face they should only be offset by one unit on a single axis.
-                Debug.Assert(Math.Abs(deltaX) + Math.Abs(deltaY) + Math.Abs(deltaZ) == 1);
-
-                // Multiplying by Abs(delta) zeroes out all terms except the one we want.
-                var cubeFaceIndex = (int)(
-                    ((deltaX * 0.5) + 2.5) * Math.Abs(deltaX) +
-                    ((deltaY * 1.5) + 2.5) * Math.Abs(deltaY) +
-                    ((deltaZ * 2.5) + 2.5) * Math.Abs(deltaZ)
-                );
-                var otherFaceIndex = Cube.GetOppositeFaceIndex(cubeFaceIndex);
-
-                // Hide both faces. This lets us exclude both from any future calculations, as once a face is
-                // hidden it can't be unhidden by adding more blocks.
-                cube[cubeFaceIndex].Hide();
-                other[otherFaceIndex].Hide();
-
-                // Link identical faces on the other cube to the current cube. Now all faces surrounding
-                // the shared face point to the other cube, hiding the shared face from the outside.
-                for (var i = 0; i <= Cube.MaxFaceIndex; i++)
+                if (current.Y < nodes.GetLength(1) - 1)
                 {
-                    var cubeFace = cube[i];
-                    var otherFace = other[i];
-                    cubeFace.TryConnect(otherFace);
+                    Visit(nodes[current.X, current.Y + 1, current.Z], x => { x.IsVisitedYPlus = true; }, nodes);
                 }
-            }
-        }
 
-        static (IReadOnlyList<Cube> sharedFace, IReadOnlyList<Cube> sharedEdge) GetNeighboringCubes(Cube cube, Cube[,,] cubes)
-        {
-            Cube? GetAtOffset(int xOffset, int yOffset, int zOffset)
-            {
-                var x = cube.X + xOffset;
-                var y = cube.Y + yOffset;
-                var z = cube.Z + zOffset;
-                return x >= 0 && x < cubes.GetLength(0) && y >= 0 && y < cubes.GetLength(1) && z >= 0 && z < cubes.GetLength(2)
-                    ? cubes[x, y, z]
-                    : null;
-            }
-
-            // There are 18 cubes that could touch an edge or face of another cube (we don't care
-            // about corners). The six that share faces are offset in a single axis, whereas the
-            // twelve that share edges are offset in two axes.
-            var sharedFace = new List<Cube>();
-            var sharedEdge = new List<Cube>();
-            for (var xOffset = -1; xOffset <= 1; xOffset++)
-            {
-                for (var yOffset = -1; yOffset <= 1; yOffset++)
+                if (current.Z > 0)
                 {
-                    for (var zOffset = -1; zOffset <= 1; zOffset++)
-                    {
-                        var neighbor = GetAtOffset(xOffset, yOffset, zOffset);
-                        if (neighbor == null)
-                        {
-                            continue;
-                        }
+                    Visit(nodes[current.X, current.Y, current.Z - 1], x => { x.IsVisitedZMinus = true; }, nodes);
+                }
 
-                        var zeros = new[] { xOffset, yOffset, zOffset }.Count(x => x == 0);
-                        switch (zeros)
-                        {
-                            case 1:
-                                // If one value is zero then other is offset in two axes and shares an edge.
-                                sharedEdge.Add(neighbor);
-                                break;
-                            case 2:
-                                // If two values are zero then the other is offset in a single axis and shares a face.
-                                sharedFace.Add(neighbor);
-                                break;
-                        }
-                    }
+                if (current.Z < nodes.GetLength(2) - 1)
+                {
+                    Visit(nodes[current.X, current.Y, current.Z + 1], x => { x.IsVisitedZPlus = true; }, nodes);
                 }
             }
 
-            return (sharedFace, sharedEdge);
-        }
+            Visit(nodes[0, 0, 0], x => { }, nodes);
 
-        static Cube[,,] GetOrderedCubes(IEnumerable<string> lines)
-        {
-            var cubeCollection = GetCubes(lines).ToArray();
-            var sizeX = cubeCollection.Max(x => x.X) + 1;
-            var sizeY = cubeCollection.Max(x => x.Y) + 1;
-            var sizeZ = cubeCollection.Max(x => x.Z) + 1;
-            var cubes = new Cube[sizeX, sizeY, sizeZ];
-            foreach (var cube in cubeCollection)
+            var count = 0;
+            foreach (var node in nodes)
             {
-                cubes[cube.X, cube.Y, cube.Z] = cube;
+                if (!node.IsCube)
+                {
+                    continue;
+                }
+
+                if (node.IsVisitedXMinus)
+                {
+                    count++;
+                }
+
+                if (node.IsVisitedXPlus)
+                {
+                    count++;
+                }
+
+                if (node.IsVisitedYMinus)
+                {
+                    count++;
+                }
+
+                if (node.IsVisitedYPlus)
+                {
+                    count++;
+                }
+
+                if (node.IsVisitedZMinus)
+                {
+                    count++;
+                }
+
+                if (node.IsVisitedZPlus)
+                {
+                    count++;
+                }
             }
 
-            return cubes;
+            Console.WriteLine("Surface count: " + count);
         }
 
-        class Cube
+        class Node
         {
-            internal const int MaxFaceIndex = 5;
-
-            // Faces are indexed from 0-5 with:
-            //
-            //  0 in front
-            //  1 on the bottom
-            //  2 on the left
-            //  3 on the right
-            //  4 on the top
-            //  5 in the back
-            //
-            // Note that opposite face indexes always sum to 5.
-            readonly Face[] faces;
-
-            public Cube(int x, int y, int z)
+            public Node(int x, int y, int z, bool isCube)
             {
                 X = x;
                 Y = y;
                 Z = z;
-                faces = Enumerable.Range(0, MaxFaceIndex + 1).Select(x => new Face(x, this)).ToArray();
-                LinkFaces();
+                IsCube = isCube;
             }
 
             public int X { get; }
             public int Y { get; }
             public int Z { get; }
-            public bool Visited { get; set; }
+            public bool IsCube { get; set; }
 
-            public Face this[int faceIndex] => faces[faceIndex];
-
-            public static int GetOppositeFaceIndex(int index)
-            {
-                return MaxFaceIndex - index;
-            }
-
-            void LinkFaces()
-            {
-                for (var i = 0; i < faces.Length; i++)
-                {
-                    var face = faces[i];
-                    foreach (var adjacent in GetAdjacent(i))
-                    {
-                        face.ForceConnect(adjacent);
-                    }
-                }
-            }
-
-            IEnumerable<Face> GetAdjacent(int faceIndex)
-            {
-                return faces.Where((_, i) => i != faceIndex && i + faceIndex != faces.Length - 1);
-            }
+            public bool IsVisitedXMinus { get; set; }
+            public bool IsVisitedXPlus { get; set; }
+            public bool IsVisitedYMinus { get; set; }
+            public bool IsVisitedYPlus { get; set; }
+            public bool IsVisitedZMinus { get; set; }
+            public bool IsVisitedZPlus { get; set; }
+            public bool IsVisited { get; set; }
         }
 
-        class Face
+        static IEnumerable<Node> GetCubes(IEnumerable<string> lines)
         {
-            readonly Cube cube;
-            readonly HashSet<Face> connections = new();
-            bool visited;
-
-            public Face(int index, Cube cube)
-            {
-                Index = index;
-                this.cube = cube;
-            }
-
-            public int Index { get; }
-            public bool Visited => visited;
-            public bool IsHidden => connections.Count == 0;
-            public IReadOnlyCollection<Face> Connections => connections;
-
-            /// <summary>
-            /// Connects to another face in the outgoing direction only, provided that neither
-            /// face is hidden.
-            /// </summary>
-            /// <returns>True if the connection succeeded, else false.</returns>
-            public bool TryConnect(Face other)
-            {
-                if (IsHidden || other.IsHidden)
-                {
-                    return false;
-                }
-
-                connections.Add(other);
-                other.connections.Add(this);
-                return true;
-            }
-
-            public void ForceConnect(Face other)
-            {
-                connections.Add(other);
-            }
-
-            public bool Disconnect(Face other)
-            {
-                return connections.Remove(other);
-            }
-
-            public void Hide()
-            {
-                foreach (var connection in connections)
-                {
-                    connection.connections.Remove(this);
-                }
-
-                connections.Clear();
-            }
-
-            public int GetOppositeIndex()
-            {
-                return Cube.GetOppositeFaceIndex(Index);
-            }
-
-            public void SetVisited()
-            {
-                visited = true;
-                cube.Visited = true;
-            }
-        }
-
-        static IEnumerable<Cube> GetCubes(IEnumerable<string> lines)
-        {
+            // Add 1 to allow for an empty ring for flood fill.
             return lines.Select(x =>
             {
                 var split = x.Split(',');
-                return new Cube(int.Parse(split[0]), int.Parse(split[1]), int.Parse(split[2]));
+                return new Node(int.Parse(split[0]) + 1, int.Parse(split[1]) + 1, int.Parse(split[2]) + 1, true);
             }).ToArray();
         }
 
