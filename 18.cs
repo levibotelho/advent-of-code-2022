@@ -15,6 +15,9 @@ namespace AdventOfCode
 
         static void PrintExteriorSurface(IEnumerable<string> lines)
         {
+            // TODO: Tried 3314, was too high. Probably counting blocks inside spaces inside other blocks.
+            // Need to use flood fill.
+
             var cubes = GetOrderedCubes(lines);
             foreach (var cube in cubes)
             {
@@ -32,8 +35,29 @@ namespace AdventOfCode
                 UpdateEdgeLinks(cube, sharedEdgeCubes);
             }
 
+            PrintCubes(cubes);
+
             var exposedFaceCount = CountExposedFaces(cubes);
             Console.WriteLine($"Exterior surface area: {exposedFaceCount}");
+        }
+
+        static void PrintCubes(Cube[,,] cubes)
+        {
+            foreach (var cube in cubes)
+            {
+                if (cube == null)
+                {
+                    continue;
+                }
+
+                Console.WriteLine($"Cube ({cube.X},{cube.Y},{cube.Z})");
+                for (var i = 0; i < 6; i++)
+                {
+                    var face = cube[i];
+                    Console.WriteLine($"\tFace {i} - Connections: {face.Connections.Count}");
+                }
+                Console.WriteLine();
+            }
         }
 
         static int CountExposedFaces(Cube[,,] cubes)
@@ -55,7 +79,16 @@ namespace AdventOfCode
                             continue;
                         }
 
-                        faceCount += CountFacesInComponent(cube[2]);
+                        var startingFace = cube[2];
+
+                        // Blocks completely hidden by other blocks will not be connected on the graph,
+                        // however we end up seeing them here.
+                        if (startingFace.IsHidden)
+                        {
+                            continue;
+                        }
+
+                        faceCount += CountFacesInComponent(startingFace);
                     }
                 }
             }
@@ -67,6 +100,7 @@ namespace AdventOfCode
         {
             static int Count(Face face, int runningCount)
             {
+                Debug.Assert(!face.IsHidden);
                 if (face.Visited)
                 {
                     return runningCount;
@@ -123,10 +157,10 @@ namespace AdventOfCode
 
                 // Disconnect the shared faces from one another, and connect them to the face on the
                 // other cube that is opposite to the face from which they are being disconnected.
-                sharedEdgeFaces[0].Connections.Remove(sharedEdgeFaces[1]);
-                sharedEdgeFaces[1].Connections.Remove(sharedEdgeFaces[0]);
-                sharedEdgeFaces[0].Connections.Add(other[sharedEdgeFaces[1].GetOppositeIndex()]);
-                sharedEdgeFaces[1].Connections.Add(other[sharedEdgeFaces[0].GetOppositeIndex()]);
+                sharedEdgeFaces[0].Disconnect(sharedEdgeFaces[1]);
+                sharedEdgeFaces[1].Disconnect(sharedEdgeFaces[0]);
+                sharedEdgeFaces[0].TryConnect(other[sharedEdgeFaces[1].GetOppositeIndex()]);
+                sharedEdgeFaces[1].TryConnect(other[sharedEdgeFaces[0].GetOppositeIndex()]);
             }
         }
 
@@ -150,29 +184,18 @@ namespace AdventOfCode
                 );
                 var otherFaceIndex = Cube.GetOppositeFaceIndex(cubeFaceIndex);
 
-                // Remove all links to and from the face which is hidden by the adjacent block.
-                cube.HideFace(cubeFaceIndex);
+                // Hide both faces. This lets us exclude both from any future calculations, as once a face is
+                // hidden it can't be unhidden by adding more blocks.
+                cube[cubeFaceIndex].Hide();
+                other[otherFaceIndex].Hide();
 
                 // Link identical faces on the other cube to the current cube. Now all faces surrounding
                 // the shared face point to the other cube, hiding the shared face from the outside.
                 for (var i = 0; i <= Cube.MaxFaceIndex; i++)
                 {
-                    if (i == cubeFaceIndex || i == otherFaceIndex)
-                    {
-                        continue;
-                    }
-
                     var cubeFace = cube[i];
-                    if (!cubeFace.Connections.Any())
-                    {
-                        // A cube face starts with connections and can only update or lose them as
-                        // blocks are added. If it has no connections it's hidden and must not be
-                        // reconnected.
-                        continue;
-                    }
-
                     var otherFace = other[i];
-                    cubeFace.Connections.Add(otherFace);
+                    cubeFace.TryConnect(otherFace);
                 }
             }
         }
@@ -277,17 +300,6 @@ namespace AdventOfCode
                 return MaxFaceIndex - index;
             }
 
-            public void HideFace(int faceIndex)
-            {
-                var face = faces[faceIndex];
-                foreach (var connection in face.Connections)
-                {
-                    connection.Connections.Remove(face);
-                }
-
-                face.Connections.Clear();
-            }
-
             void LinkFaces()
             {
                 for (var i = 0; i < faces.Length; i++)
@@ -295,7 +307,7 @@ namespace AdventOfCode
                     var face = faces[i];
                     foreach (var adjacent in GetAdjacent(i))
                     {
-                        face.Connections.Add(adjacent);
+                        face.ForceConnect(adjacent);
                     }
                 }
             }
@@ -309,6 +321,7 @@ namespace AdventOfCode
         class Face
         {
             readonly Cube cube;
+            readonly HashSet<Face> connections = new();
             bool visited;
 
             public Face(int index, Cube cube)
@@ -318,8 +331,46 @@ namespace AdventOfCode
             }
 
             public int Index { get; }
-            public HashSet<Face> Connections { get; } = new();
             public bool Visited => visited;
+            public bool IsHidden => connections.Count == 0;
+            public IReadOnlyCollection<Face> Connections => connections;
+
+            /// <summary>
+            /// Connects to another face in the outgoing direction only, provided that neither
+            /// face is hidden.
+            /// </summary>
+            /// <returns>True if the connection succeeded, else false.</returns>
+            public bool TryConnect(Face other)
+            {
+                if (IsHidden || other.IsHidden)
+                {
+                    return false;
+                }
+
+                connections.Add(other);
+                other.connections.Add(this);
+                return true;
+            }
+
+            public void ForceConnect(Face other)
+            {
+                connections.Add(other);
+            }
+
+            public bool Disconnect(Face other)
+            {
+                return connections.Remove(other);
+            }
+
+            public void Hide()
+            {
+                foreach (var connection in connections)
+                {
+                    connection.connections.Remove(this);
+                }
+
+                connections.Clear();
+            }
 
             public int GetOppositeIndex()
             {
