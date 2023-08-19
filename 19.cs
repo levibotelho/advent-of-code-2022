@@ -14,7 +14,7 @@ namespace AdventOfCode
             Console.WriteLine($"Best score {scores}");
         }
 
-        static int SimulateBest(Blueprint blueprint)
+        static int SimulateBest(Blueprint blueprint, int duration)
         {
             static int Simulate(Simulation simulation)
             {
@@ -33,7 +33,7 @@ namespace AdventOfCode
 
                 if (simulation.TryBuildObsidianRobot(out next))
                 {
-                    // Always spend clay to build obsidian robots to mine obsidian for geode robots if possible.
+                    // (Questionable) Always spend clay to build obsidian robots to mine obsidian for geode robots if possible.
                     return Math.Max(max, Simulate(next));
                 }
 
@@ -50,24 +50,26 @@ namespace AdventOfCode
                 return Math.Max(max, Simulate(simulation.Tick()));
             }
 
-            var simulation = new Simulation(blueprint);
+            var simulation = new Simulation(blueprint, duration);
             return Simulate(simulation);
         }
 
         class Simulation
         {
-            public static readonly int MaxMinutes = 24;
             readonly Blueprint blueprint;
+            readonly int duration;
 
-            public Simulation(Blueprint blueprint)
+            public Simulation(Blueprint blueprint, int duration)
             {
                 this.blueprint = blueprint;
+                this.duration = duration;
                 OreRobots = 1;
             }
 
             Simulation(Simulation toClone)
             {
                 blueprint = toClone.blueprint;
+                duration = toClone.duration;
 
                 OreRobots = toClone.OreRobots;
                 ClayRobots = toClone.ClayRobots;
@@ -93,7 +95,7 @@ namespace AdventOfCode
             public int Geodes { get; private set; }
 
             public int Minute { get; private set; }
-            public bool IsFinished => Minute == MaxMinutes;
+            public bool IsFinished => Minute == duration;
 
             public bool TryBuildOreRobot(out Simulation next)
             {
@@ -181,11 +183,11 @@ namespace AdventOfCode
                 Debug.Assert(Clay >= 0);
                 Debug.Assert(Obsidian >= 0);
                 Debug.Assert(Geodes >= 0);
-                Debug.Assert(Minute <= MaxMinutes);
-                Debug.Assert(OreRobots <= MaxMinutes);
-                Debug.Assert(ClayRobots <= MaxMinutes);
-                Debug.Assert(ObsidianRobots <= MaxMinutes);
-                Debug.Assert(GeodeRobots <= MaxMinutes);
+                Debug.Assert(Minute <= duration);
+                Debug.Assert(OreRobots <= duration);
+                Debug.Assert(ClayRobots <= duration);
+                Debug.Assert(ObsidianRobots <= duration);
+                Debug.Assert(GeodeRobots <= duration);
             }
         }
 
