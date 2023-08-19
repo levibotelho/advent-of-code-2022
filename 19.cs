@@ -8,50 +8,75 @@ namespace AdventOfCode
     {
         public static void Run()
         {
+            // RunPart1();
+            RunPart2();
+        }
+
+        static void RunPart1()
+        {
             var lines = GetLines();
-            var blueprints = lines.Select(x => new Blueprint(x)).ToArray();
-            var scores = blueprints.AsParallel().Select(SimulateBest).Select((x, i) => x * (i + 1)).Sum();
-            Console.WriteLine($"Best score {scores}");
+            var blueprints = lines.Select(x => new Blueprint(x));
+            var score = blueprints.AsParallel().Select(x => SimulateBest(x, 24)).Select((x, i) => x * (i + 1)).Sum();
+            Console.WriteLine($"Score part 1 {score}");
+        }
+
+        static void RunPart2()
+        {
+            var lines = GetLines();
+            var blueprints = lines.Select(x => new Blueprint(x)).Take(3);
+            var score = blueprints.AsParallel().Select(x => SimulateBest(x, 32)).Aggregate(1, (a, x) => a * x);
+            Console.WriteLine($"Score part 2 {score}");
         }
 
         static int SimulateBest(Blueprint blueprint, int duration)
         {
-            static int Simulate(Simulation simulation)
+            static int Simulate(Simulation simulation, int best, int duration)
             {
                 if (simulation.IsFinished)
                 {
                     return simulation.Geodes;
                 }
 
-                var max = int.MinValue;
+                var maxGeodes = simulation.Geodes;
+                var geodeRobots = simulation.GeodeRobots;
+                for (var i = simulation.Minute; i < duration; i++)
+                {
+                    maxGeodes += geodeRobots;
+                    geodeRobots++;
+                }
+
+                // We can't do any better than the best even if we add a new geode robot every turn.
+                if (maxGeodes < best)
+                {
+                    return best;
+                }
 
                 if (simulation.TryBuildGeodeRobot(out var next))
                 {
                     // Always spend obsidian to build geode robots if possible.
-                    return Math.Max(max, Simulate(next));
+                    return Math.Max(best, Simulate(next, best, duration));
                 }
 
                 if (simulation.TryBuildObsidianRobot(out next))
                 {
-                    // (Questionable) Always spend clay to build obsidian robots to mine obsidian for geode robots if possible.
-                    return Math.Max(max, Simulate(next));
+                    best = Math.Max(best, Simulate(next, best, duration));
                 }
 
                 if (simulation.TryBuildOreRobot(out next))
                 {
-                    max = Math.Max(max, Simulate(next));
+                    best = Math.Max(best, Simulate(next, best, duration));
                 }
 
                 if (simulation.TryBuildClayRobot(out next))
                 {
-                    max = Math.Max(max, Simulate(next));
+                    best = Math.Max(best, Simulate(next, best, duration));
                 }
 
-                return Math.Max(max, Simulate(simulation.Tick()));
+                return Math.Max(best, Simulate(simulation.Tick(), best, duration));
             }
 
             var simulation = new Simulation(blueprint, duration);
-            return Simulate(simulation);
+            return Simulate(simulation, int.MinValue, duration);
         }
 
         class Simulation
