@@ -57,17 +57,32 @@ namespace AdventOfCode
                     return Math.Max(best, Simulate(next, best, duration));
                 }
 
-                if (simulation.TryBuildObsidianRobot(out next))
+                // We can only build one robot at a time. Don't create more obsidian robots than the
+                // amount of obsidian we can spend per minute, which is that which can be used to build
+                // a geode robot.
+                var maxObsidianRobots = simulation.Blueprint.GeodeRobotCostObsidian;
+                if (simulation.ObsidianRobots < maxObsidianRobots && simulation.TryBuildObsidianRobot(out next))
                 {
                     best = Math.Max(best, Simulate(next, best, duration));
                 }
 
-                if (simulation.TryBuildOreRobot(out next))
+                // Same logic. Clay can only be used for obsidian robots.
+                var maxClayRobots = simulation.Blueprint.ObsidianRobotCostClay;
+                if (simulation.ClayRobots < maxClayRobots && simulation.TryBuildClayRobot(out next))
                 {
                     best = Math.Max(best, Simulate(next, best, duration));
                 }
 
-                if (simulation.TryBuildClayRobot(out next))
+                // Same logic. Don't create more ore robots than the amount of ore which can be spent
+                // on any other robot.
+                var maxOreRobots = Math.Max(
+                    Math.Max(
+                        Math.Max(simulation.Blueprint.OreRobotCostOre, simulation.Blueprint.ClayRobotCostOre),
+                        simulation.Blueprint.ObsidianRobotCostOre
+                    ),
+                    simulation.Blueprint.GeodeRobotCostOre
+                );
+                if (simulation.OreRobots < maxOreRobots && simulation.TryBuildOreRobot(out next))
                 {
                     best = Math.Max(best, Simulate(next, best, duration));
                 }
@@ -81,19 +96,18 @@ namespace AdventOfCode
 
         class Simulation
         {
-            readonly Blueprint blueprint;
             readonly int duration;
 
             public Simulation(Blueprint blueprint, int duration)
             {
-                this.blueprint = blueprint;
+                Blueprint = blueprint;
                 this.duration = duration;
                 OreRobots = 1;
             }
 
             Simulation(Simulation toClone)
             {
-                blueprint = toClone.blueprint;
+                Blueprint = toClone.Blueprint;
                 duration = toClone.duration;
 
                 OreRobots = toClone.OreRobots;
@@ -108,6 +122,8 @@ namespace AdventOfCode
 
                 Minute = toClone.Minute;
             }
+
+            public Blueprint Blueprint { get; private set; }
 
             public int OreRobots { get; private set; }
             public int ClayRobots { get; private set; }
@@ -124,14 +140,14 @@ namespace AdventOfCode
 
             public bool TryBuildOreRobot(out Simulation next)
             {
-                if (Ore < blueprint.OreRobotCostOre)
+                if (Ore < Blueprint.OreRobotCostOre)
                 {
                     next = this;
                     return false;
                 }
 
                 next = new Simulation(this);
-                next.Ore -= blueprint.OreRobotCostOre;
+                next.Ore -= Blueprint.OreRobotCostOre;
                 next.TickMutate();
                 next.OreRobots++;
                 return true;
@@ -139,14 +155,14 @@ namespace AdventOfCode
 
             public bool TryBuildClayRobot(out Simulation next)
             {
-                if (Ore < blueprint.ClayRobotCostOre)
+                if (Ore < Blueprint.ClayRobotCostOre)
                 {
                     next = this;
                     return false;
                 }
 
                 next = new Simulation(this);
-                next.Ore -= blueprint.ClayRobotCostOre;
+                next.Ore -= Blueprint.ClayRobotCostOre;
                 next.TickMutate();
                 next.ClayRobots++;
                 return true;
@@ -154,15 +170,15 @@ namespace AdventOfCode
 
             public bool TryBuildObsidianRobot(out Simulation next)
             {
-                if (Ore < blueprint.ObsidianRobotCostOre || Clay < blueprint.ObsidianRobotCostClay)
+                if (Ore < Blueprint.ObsidianRobotCostOre || Clay < Blueprint.ObsidianRobotCostClay)
                 {
                     next = this;
                     return false;
                 }
 
                 next = new Simulation(this);
-                next.Ore -= blueprint.ObsidianRobotCostOre;
-                next.Clay -= blueprint.ObsidianRobotCostClay;
+                next.Ore -= Blueprint.ObsidianRobotCostOre;
+                next.Clay -= Blueprint.ObsidianRobotCostClay;
                 next.TickMutate();
                 next.ObsidianRobots++;
                 return true;
@@ -170,15 +186,15 @@ namespace AdventOfCode
 
             public bool TryBuildGeodeRobot(out Simulation next)
             {
-                if (Ore < blueprint.GeodeRobotCostOre || Obsidian < blueprint.GeodeRobotCostObsidian)
+                if (Ore < Blueprint.GeodeRobotCostOre || Obsidian < Blueprint.GeodeRobotCostObsidian)
                 {
                     next = this;
                     return false;
                 }
 
                 next = new Simulation(this);
-                next.Ore -= blueprint.GeodeRobotCostOre;
-                next.Obsidian -= blueprint.GeodeRobotCostObsidian;
+                next.Ore -= Blueprint.GeodeRobotCostOre;
+                next.Obsidian -= Blueprint.GeodeRobotCostObsidian;
                 next.TickMutate();
                 next.GeodeRobots++;
                 return true;
