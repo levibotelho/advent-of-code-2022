@@ -10,8 +10,8 @@ namespace AdventOfCode
         {
             var lines = GetLines();
             var blueprints = lines.Select(x => new Blueprint(x)).ToArray();
-            var scores = blueprints.Select(SimulateBest).ToArray();
-            Console.WriteLine($"Best score {scores.Max()}");
+            var scores = blueprints.AsParallel().Select(SimulateBest).Select((x, i) => x * (i + 1)).Sum();
+            Console.WriteLine($"Best score {scores}");
         }
 
         static int SimulateBest(Blueprint blueprint)
@@ -24,22 +24,25 @@ namespace AdventOfCode
                 }
 
                 var max = int.MinValue;
-                if (simulation.TryBuildOreRobot(out var next))
+
+                if (simulation.TryBuildGeodeRobot(out var next))
+                {
+                    // Always spend obsidian to build geode robots if possible.
+                    return Math.Max(max, Simulate(next));
+                }
+
+                if (simulation.TryBuildObsidianRobot(out next))
+                {
+                    // Always spend clay to build obsidian robots to mine obsidian for geode robots if possible.
+                    return Math.Max(max, Simulate(next));
+                }
+
+                if (simulation.TryBuildOreRobot(out next))
                 {
                     max = Math.Max(max, Simulate(next));
                 }
 
                 if (simulation.TryBuildClayRobot(out next))
-                {
-                    max = Math.Max(max, Simulate(next));
-                }
-
-                if (simulation.TryBuildObsidianRobot(out next))
-                {
-                    max = Math.Max(max, Simulate(next));
-                }
-
-                if (simulation.TryBuildGeodeRobot(out next))
                 {
                     max = Math.Max(max, Simulate(next));
                 }
