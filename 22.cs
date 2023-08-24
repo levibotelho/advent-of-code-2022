@@ -9,7 +9,7 @@ namespace AdventOfCode
         {
             var lines = GetLines().ToArray();
             Part1(lines);
-            // Part2(lines);
+            Part2(lines);
         }
     }
 }

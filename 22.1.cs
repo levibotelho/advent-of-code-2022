@@ -64,10 +64,15 @@ namespace AdventOfCode
                 Debug.Assert(y >= 0 && y < map.Length);
             }
 
+            var password = CalculatePassword(x, y, direction);
+            Console.WriteLine($"Password part 1: {password}");
+        }
+
+        static int CalculatePassword(int x, int y, int direction)
+        {
             var row = y + 1;
             var column = x + 1;
-            var score = (1000 * row) + (4 * column) + direction;
-            Console.WriteLine(score);
+            return (1000 * row) + (4 * column) + direction;
         }
 
         static (int, bool) GetNextInRow(bool?[] line, int xCurrent, int direction)

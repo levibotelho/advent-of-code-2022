@@ -9,6 +9,14 @@ namespace AdventOfCode
         {
             var map = CreateMap(lines);
             var walker = new CubeWalker(map);
+            var instructions = CreateInstructions(lines);
+            foreach (var instruction in instructions)
+            {
+                walker.Walk(instruction.Count, instruction.TurnRight);
+            }
+
+            var password = CalculatePassword(walker.X, walker.Y, walker.Orientation.Value);
+            Console.WriteLine($"Password part 2: {password}"); // 118137 too high
         }
 
         class CubeWalker
@@ -18,8 +26,8 @@ namespace AdventOfCode
             public CubeWalker(bool?[][] map)
             {
                 this.map = map;
-                X = 0;
-                Y = GetStartingY();
+                X = GetStartingX();
+                Y = 0;
 
                 var width = map.Max(x => x.Length);
                 var height = map.Length;
@@ -31,11 +39,11 @@ namespace AdventOfCode
             public Orientation Orientation { get; private set; }
             public int EdgeLength { get; }
 
-            int GetStartingY()
+            int GetStartingX()
             {
-                for (var y = 0; y < map[0].Length; y++)
+                for (var x = 0; x < map[0].Length; x++)
                 {
-                    var cell = map[0][y];
+                    var cell = map[0][x];
                     if (cell != null)
                     {
                         if (cell == true)
@@ -43,7 +51,7 @@ namespace AdventOfCode
                             throw new InvalidOperationException("first cell of map is a wall");
                         }
 
-                        return y;
+                        return x;
                     }
                 }
 
@@ -207,32 +215,6 @@ namespace AdventOfCode
                     TryResolve(X - smallShift, Y - bigShift, MirrorFaceTLBR, x => x.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
             }
 
-            /// <summary>
-            /// Mirrors a coordinate within a face across the top left/bottom right diagonal
-            /// </summary>
-            /// <returns></returns>
-            static (int x, int y) MirrorFaceTLBR(int x, int y, int edgeLength)
-            {
-                var offsetX = (x / edgeLength) * edgeLength;
-                var normalizedX = x - offsetX;
-                var offsetY = (y / edgeLength) * edgeLength;
-                var normalizedY = y - offsetY;
-                return (offsetX + normalizedY, offsetY + normalizedX);
-            }
-
-            /// <summary>
-            /// Mirrors a coordinate within a face across the top right/bottom left diagonal
-            /// </summary>
-            /// <returns></returns>
-            static (int x, int y) MirrorFaceTRBL(int x, int y, int edgeLength)
-            {
-                var offsetX = (x / edgeLength) * edgeLength;
-                var normalizedX = x - offsetX;
-                var offsetY = (y / edgeLength) * edgeLength;
-                var normalizedY = y - offsetY;
-                return (offsetX + edgeLength - normalizedX, offsetY + edgeLength - normalizedY);
-            }
-
             bool TryGetNext2(
                 int deltaX,
                 int deltaY,
@@ -316,66 +298,112 @@ namespace AdventOfCode
                 out bool nextValue
             )
             {
-                // We're moving vertically
+                bool IsValid(
+                    int x,
+                    int y,
+                    Orientation nextOrientationIn,
+                    out int nextX,
+                    out int nextY,
+                    out Orientation nextOrientation,
+                    out bool nextValue
+                )
+                {
+                    nextX = x;
+                    nextY = y;
+                    nextOrientation = nextOrientationIn;
+                    var value = GetValue(x, y, map);
+                    if (value != null)
+                    {
+                        nextValue = value.Value;
+                        return true;
+                    }
+
+                    nextValue = false;
+                    return false;
+                }
+
                 if (deltaX == 0)
                 {
-                    // Try rotating back around the corner closer to the origin.
-                    var offset0 = (X % EdgeLength) - 1;
-                    nextX = X - offset0;
-                    nextY = Y - (offset0 * deltaY);
-                    var value = GetValue(nextX, nextY);
-                    if (value != null)
+                    if (deltaY == -1)
                     {
-                        nextOrientation = deltaY == 1 ? Orientation.RotateClockwise() : Orientation.RotateCounterclockwise();
-                        nextValue = value.Value;
-                        return true;
+                        // Up
+                        var (xLeft, yLeft) = MirrorFaceTRBL(X, Y);
+                        var (xRight, yRight) = MirrorFaceTLBR(X, Y);
+                        return
+                            IsValid(xLeft - EdgeLength, yLeft - EdgeLength, Orientation.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
+                            IsValid(xRight + EdgeLength, yRight - EdgeLength, Orientation.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
                     }
-
-                    // Try rotating around the corner further from the origin.
-                    var offset1 = EdgeLength - offset0 + 1;
-                    nextX = X + offset1;
-                    nextY = Y + (offset1 * deltaY);
-                    value = GetValue(nextX, nextY);
-                    if (value != null)
+                    else if (deltaY == 1)
                     {
-                        nextOrientation = deltaY == 1 ? Orientation.RotateCounterclockwise() : Orientation.RotateClockwise();
-                        nextValue = value.Value;
-                        return true;
+                        // Down
+                        var (xLeft, yLeft) = MirrorFaceTLBR(X, Y);
+                        var (xRight, yRight) = MirrorFaceTRBL(X, Y);
+                        return
+                            IsValid(xLeft - EdgeLength, yLeft + EdgeLength, Orientation.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
+                            IsValid(xRight + EdgeLength, yRight + EdgeLength, Orientation.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
+                    }
+                    else
+                    {
+                        throw new ArgumentOutOfRangeException(nameof(deltaY));
                     }
                 }
 
-                // We're moving horizontally
                 if (deltaY == 0)
                 {
-                    // Try rotating back around the corner closer to the origin.
-                    var offset0 = (Y % EdgeLength) - 1;
-                    nextX = X + (offset0 * deltaX);
-                    nextY = Y - offset0;
-                    var value = GetValue(nextX, nextY);
-                    if (value != null)
+                    if (deltaX == -1)
                     {
-                        nextOrientation = deltaX == 1 ? Orientation.RotateCounterclockwise() : Orientation.RotateClockwise();
-                        nextValue = value.Value;
-                        return true;
+                        // Left
+                        var (xUp, yUp) = MirrorFaceTRBL(X, Y);
+                        var (xDown, yDown) = MirrorFaceTLBR(X, Y);
+                        return
+                            IsValid(xUp - EdgeLength, yUp - EdgeLength, Orientation.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
+                            IsValid(xDown - EdgeLength, yDown + EdgeLength, Orientation.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
                     }
-
-                    // Try rotating around the corner further from the origin.
-                    var offset1 = EdgeLength - offset0 + 1;
-                    nextX = X + (offset1 * deltaX);
-                    nextY = Y + offset1;
-                    value = GetValue(nextX, nextY);
-                    if (value != null)
+                    else if (deltaX == 1)
                     {
-                        nextOrientation = deltaY == 1 ? Orientation.RotateClockwise() : Orientation.RotateCounterclockwise();
-                        nextValue = value.Value;
-                        return true;
+                        // Right
+                        var (xUp, yUp) = MirrorFaceTLBR(X, Y);
+                        var (xDown, yDown) = MirrorFaceTRBL(X, Y);
+                        return
+                            IsValid(xUp + EdgeLength, yUp - EdgeLength, Orientation.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
+                            IsValid(xDown + EdgeLength, yDown + EdgeLength, Orientation.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
+                    }
+                    else
+                    {
+                        throw new ArgumentOutOfRangeException(nameof(deltaX));
                     }
                 }
 
-                nextX = nextY = 0;
-                nextOrientation = Orientation.Right;
-                nextValue = false;
-                return false;
+                throw new ArgumentException("one of deltaX, deltaY must be zero");
+            }
+
+            (int x, int y) MirrorFaceTLBR(int x, int y) => MirrorFaceTLBR(x, y, EdgeLength);
+            (int x, int y) MirrorFaceTRBL(int x, int y) => MirrorFaceTRBL(x, y, EdgeLength);
+
+            /// <summary>
+            /// Mirrors a coordinate within a face across the top left/bottom right diagonal
+            /// </summary>
+            /// <returns></returns>
+            static (int x, int y) MirrorFaceTLBR(int x, int y, int edgeLength)
+            {
+                var offsetX = (x / edgeLength) * edgeLength;
+                var normalizedX = x - offsetX;
+                var offsetY = (y / edgeLength) * edgeLength;
+                var normalizedY = y - offsetY;
+                return (offsetX + normalizedY, offsetY + normalizedX);
+            }
+
+            /// <summary>
+            /// Mirrors a coordinate within a face across the top right/bottom left diagonal
+            /// </summary>
+            /// <returns></returns>
+            static (int x, int y) MirrorFaceTRBL(int x, int y, int edgeLength)
+            {
+                var offsetX = (x / edgeLength) * edgeLength;
+                var normalizedX = x - offsetX;
+                var offsetY = (y / edgeLength) * edgeLength;
+                var normalizedY = y - offsetY;
+                return (offsetX + edgeLength - normalizedY - 1, offsetY + edgeLength - normalizedX - 1);
             }
 
             /// <summary>
@@ -393,7 +421,8 @@ namespace AdventOfCode
             /// </summary>
             static bool? GetValue(int x, int y, bool?[][] map)
             {
-                return x < 0 || y < 0 || x >= map.Length || y >= map[0].Length ? null : map[x][y];
+                // Map is an array of rows, so the first coordinate selects the row and is therefore y, not x.
+                return x < 0 || y < 0 || y >= map.Length || x >= map[y].Length ? null : map[y][x];
             }
 
             /// <summary>
