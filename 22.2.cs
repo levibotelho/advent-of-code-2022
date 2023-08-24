@@ -10,13 +10,14 @@ namespace AdventOfCode
             var map = CreateMap(lines);
             var walker = new CubeWalker(map);
             var instructions = CreateInstructions(lines);
-            foreach (var instruction in instructions)
+            for (var i = 0; i < instructions.Count; i++)
             {
+                var instruction = instructions[i];
                 walker.Walk(instruction.Count, instruction.TurnRight);
             }
 
             var password = CalculatePassword(walker.X, walker.Y, walker.Orientation.Value);
-            Console.WriteLine($"Password part 2: {password}"); // 118137 too high
+            Console.WriteLine($"Password part 2: {password}");
         }
 
         class CubeWalker
@@ -97,14 +98,14 @@ namespace AdventOfCode
                 Debug.Assert(deltaX == -1 || deltaX == 1 || deltaY == -1 || deltaY == 1);
                 Debug.Assert(deltaX != deltaY);
 
-                // Look for the next face by moving progressively further away from the current point.
-                // These methods in this order should (?) always find the next point, value, and rotation
-                // for any valid cube.
+                // 1 through 4 search progressively further from the point in question. This particular
+                // order works for the test and input cubes, ensuring that the correct path is chosen
+                // even when multiple candidates exist. It's hacky, but gets the job done on both datasets.
                 if (
                     TryGetNext1(deltaX, deltaY, out var nextX, out var nextY, out var nextOrientation, out var nextValue) ||
-                    TryGetNext2(deltaX, deltaY, out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryGetNext3(out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryGetNext4(deltaX, deltaY, out nextX, out nextY, out nextOrientation, out nextValue)
+                    TryGetNext4(deltaX, deltaY, out nextX, out nextY, out nextOrientation, out nextValue) ||
+                    TryGetNext3(deltaX, deltaY, out nextX, out nextY, out nextOrientation, out nextValue) ||
+                    TryGetNext2(deltaX, deltaY, out nextX, out nextY, out nextOrientation, out nextValue)
                 )
                 {
                     return (nextX, nextY, nextOrientation, nextValue);
@@ -122,27 +123,6 @@ namespace AdventOfCode
                 out bool nextValue
             )
             {
-                bool TryResolve(
-                    int x,
-                    int y,
-                    out int nextX,
-                    out int nextY,
-                    out bool nextValue
-                )
-                {
-                    nextX = x;
-                    nextY = y;
-                    var value = GetValue(x, y, map);
-                    if (value != null)
-                    {
-                        nextValue = value.Value;
-                        return true;
-                    }
-
-                    nextValue = false;
-                    return false;
-                }
-
                 nextOrientation = Orientation;
                 var congruentShift = EdgeLength * 4 - 1; // e.g. edge length of 2 = 7 -> 0
                 var crossShift = EdgeLength * 2;
@@ -150,16 +130,28 @@ namespace AdventOfCode
                 if (deltaX == 0)
                 {
                     var yShifted = deltaY == -1 ? Y + congruentShift : Y - congruentShift;
-                    return TryResolve(X - crossShift, yShifted, out nextX, out nextY, out nextValue) ||
-                        TryResolve(X, yShifted, out nextX, out nextY, out nextValue) ||
-                        TryResolve(X + crossShift, yShifted, out nextX, out nextY, out nextValue);
+                    return GetSingleValidCase(
+                        out nextX,
+                        out nextY,
+                        out nextOrientation,
+                        out nextValue,
+                        (X - crossShift, yShifted, Orientation),
+                        (X, yShifted, Orientation),
+                        (X + crossShift, yShifted, Orientation)
+                    );
                 }
                 else if (deltaY == 0)
                 {
                     var xShifted = deltaX == -1 ? X + congruentShift : X - congruentShift;
-                    return TryResolve(xShifted, Y - crossShift, out nextX, out nextY, out nextValue) ||
-                        TryResolve(xShifted, Y, out nextX, out nextY, out nextValue) ||
-                        TryResolve(xShifted, Y + crossShift, out nextX, out nextY, out nextValue);
+                    return GetSingleValidCase(
+                        out nextX,
+                        out nextY,
+                        out nextOrientation,
+                        out nextValue,
+                        (xShifted, Y - crossShift, Orientation),
+                        (xShifted, Y, Orientation),
+                        (xShifted, Y + crossShift, Orientation)
+                    );
                 }
                 else
                 {
@@ -168,51 +160,90 @@ namespace AdventOfCode
             }
 
             bool TryGetNext3(
+                int deltaX,
+                int deltaY,
                 out int nextX,
                 out int nextY,
                 out Orientation nextOrientation,
                 out bool nextValue
             )
             {
-                bool TryResolve(
-                    int x,
-                    int y,
-                    Func<int, int, int, (int, int)> mirror,
-                    Func<Orientation, Orientation> rotateOrientation,
-                    out int nextX,
-                    out int nextY,
-                    out Orientation nextOrientation,
-                    out bool nextValue
-                )
-                {
-                    var value = GetValue(x, y, map);
-                    if (value != null)
-                    {
-                        (nextX, nextY) = mirror(x, y, EdgeLength);
-                        nextOrientation = rotateOrientation(Orientation);
-                        nextValue = value.Value;
-                        return true;
-                    }
-
-                    nextX = nextY = 0;
-                    nextOrientation = Orientation.Right;
-                    nextValue = false;
-                    return false;
-                }
-
-                // Don't care about deltaX/Y because only one of these should resolve to a point,
-                // if any, due to the large distance between faces.
                 var smallShift = EdgeLength;
                 var bigShift = 3 * EdgeLength;
-                return
-                    TryResolve(X + bigShift, Y - smallShift, MirrorFaceTRBL, x => x.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryResolve(X - bigShift, Y + smallShift, MirrorFaceTRBL, x => x.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryResolve(X + bigShift, Y + smallShift, MirrorFaceTLBR, x => x.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryResolve(X - bigShift, Y - smallShift, MirrorFaceTLBR, x => x.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryResolve(X + smallShift, Y - bigShift, MirrorFaceTRBL, x => x.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryResolve(X - smallShift, Y + bigShift, MirrorFaceTRBL, x => x.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryResolve(X + smallShift, Y + bigShift, MirrorFaceTLBR, x => x.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                    TryResolve(X - smallShift, Y - bigShift, MirrorFaceTLBR, x => x.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
+
+                if (deltaX == 0)
+                {
+                    if (deltaY == -1)
+                    {
+                        // Up
+                        var (xLeft, yLeft) = MirrorFaceTLBR(X, Y);
+                        var (xRight, yRight) = MirrorFaceTRBL(X, Y);
+                        return GetSingleValidCase(
+                            out nextX,
+                            out nextY,
+                            out nextOrientation,
+                            out nextValue,
+                            (xLeft - smallShift, yLeft + bigShift, Orientation.RotateClockwise()),
+                            (xRight + smallShift, yRight + bigShift, Orientation.RotateCounterclockwise())
+                        );
+                    }
+                    else if (deltaY == 1)
+                    {
+                        // Down
+                        var (xLeft, yLeft) = MirrorFaceTRBL(X, Y);
+                        var (xRight, yRight) = MirrorFaceTLBR(X, Y);
+                        return GetSingleValidCase(
+                            out nextX,
+                            out nextY,
+                            out nextOrientation,
+                            out nextValue,
+                            (xLeft - smallShift, yLeft - bigShift, Orientation.RotateCounterclockwise()),
+                            (xRight + smallShift, yRight - bigShift, Orientation.RotateClockwise())
+                        );
+                    }
+                    else
+                    {
+                        throw new ArgumentOutOfRangeException(nameof(deltaY));
+                    }
+                }
+
+                if (deltaY == 0)
+                {
+                    if (deltaX == -1)
+                    {
+                        // Left
+                        var (xUp, yUp) = MirrorFaceTLBR(X, Y);
+                        var (xDown, yDown) = MirrorFaceTRBL(X, Y);
+                        return GetSingleValidCase(
+                            out nextX,
+                            out nextY,
+                            out nextOrientation,
+                            out nextValue,
+                            (xUp + smallShift, yUp - bigShift, Orientation.RotateCounterclockwise()),
+                            (xDown + smallShift, yDown + bigShift, Orientation.RotateClockwise())
+                        );
+                    }
+                    else if (deltaX == 1)
+                    {
+                        // Right
+                        var (xUp, yUp) = MirrorFaceTRBL(X, Y);
+                        var (xDown, yDown) = MirrorFaceTLBR(X, Y);
+                        return GetSingleValidCase(
+                            out nextX,
+                            out nextY,
+                            out nextOrientation,
+                            out nextValue,
+                            (xUp - smallShift, yUp - bigShift, Orientation.RotateClockwise()),
+                            (xDown - smallShift, yDown + bigShift, Orientation.RotateCounterclockwise())
+                        );
+                    }
+                    else
+                    {
+                        throw new ArgumentOutOfRangeException(nameof(deltaX));
+                    }
+                }
+
+                throw new ArgumentException("one of deltaX, deltaY must be zero");
             }
 
             bool TryGetNext2(
@@ -236,23 +267,6 @@ namespace AdventOfCode
                     var offsetNegative = (4 * edgeLength) - offsetPositive;
                     return (offsetPositive, offsetNegative);
                 }
-
-                static bool IsValid(int x, int y, bool?[][] map, out int nextX, out int nextY, out bool value)
-                {
-                    var valueTmp = GetValue(x, y, map);
-                    nextX = x;
-                    nextY = y;
-                    if (valueTmp == null)
-                    {
-                        value = false;
-                        return false;
-                    }
-
-                    value = valueTmp.Value;
-                    return true;
-                }
-
-                nextOrientation = Orientation.RotateClockwise().RotateClockwise();
 
                 int x0, x1, y0, y1;
                 if (deltaX == 0)
@@ -278,11 +292,17 @@ namespace AdventOfCode
                     throw new InvalidOperationException("exactly one of deltaX, deltaY must be zero");
                 }
 
-                return
-                    IsValid(x0, y0, map, out nextX, out nextY, out nextValue) ||
-                    IsValid(x0, y1, map, out nextX, out nextY, out nextValue) ||
-                    IsValid(x1, y0, map, out nextX, out nextY, out nextValue) ||
-                    IsValid(x1, y1, map, out nextX, out nextY, out nextValue);
+                var flippedOrientation = Orientation.RotateClockwise().RotateClockwise();
+                return GetSingleValidCase(
+                    out nextX,
+                    out nextY,
+                    out nextOrientation,
+                    out nextValue,
+                    (x0, y0, flippedOrientation),
+                    (x0, y1, flippedOrientation),
+                    (x1, y0, flippedOrientation),
+                    (x1, y1, flippedOrientation)
+                );
             }
 
             /// <summary>
@@ -298,30 +318,6 @@ namespace AdventOfCode
                 out bool nextValue
             )
             {
-                bool IsValid(
-                    int x,
-                    int y,
-                    Orientation nextOrientationIn,
-                    out int nextX,
-                    out int nextY,
-                    out Orientation nextOrientation,
-                    out bool nextValue
-                )
-                {
-                    nextX = x;
-                    nextY = y;
-                    nextOrientation = nextOrientationIn;
-                    var value = GetValue(x, y, map);
-                    if (value != null)
-                    {
-                        nextValue = value.Value;
-                        return true;
-                    }
-
-                    nextValue = false;
-                    return false;
-                }
-
                 if (deltaX == 0)
                 {
                     if (deltaY == -1)
@@ -329,18 +325,28 @@ namespace AdventOfCode
                         // Up
                         var (xLeft, yLeft) = MirrorFaceTRBL(X, Y);
                         var (xRight, yRight) = MirrorFaceTLBR(X, Y);
-                        return
-                            IsValid(xLeft - EdgeLength, yLeft - EdgeLength, Orientation.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                            IsValid(xRight + EdgeLength, yRight - EdgeLength, Orientation.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
+                        return GetSingleValidCase(
+                            out nextX,
+                            out nextY,
+                            out nextOrientation,
+                            out nextValue,
+                            (xLeft - EdgeLength, yLeft - EdgeLength, Orientation.RotateCounterclockwise()),
+                            (xRight + EdgeLength, yRight - EdgeLength, Orientation.RotateClockwise())
+                        );
                     }
                     else if (deltaY == 1)
                     {
                         // Down
                         var (xLeft, yLeft) = MirrorFaceTLBR(X, Y);
                         var (xRight, yRight) = MirrorFaceTRBL(X, Y);
-                        return
-                            IsValid(xLeft - EdgeLength, yLeft + EdgeLength, Orientation.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                            IsValid(xRight + EdgeLength, yRight + EdgeLength, Orientation.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
+                        return GetSingleValidCase(
+                            out nextX,
+                            out nextY,
+                            out nextOrientation,
+                            out nextValue,
+                            (xLeft - EdgeLength, yLeft + EdgeLength, Orientation.RotateClockwise()),
+                            (xRight + EdgeLength, yRight + EdgeLength, Orientation.RotateCounterclockwise())
+                        );
                     }
                     else
                     {
@@ -355,18 +361,28 @@ namespace AdventOfCode
                         // Left
                         var (xUp, yUp) = MirrorFaceTRBL(X, Y);
                         var (xDown, yDown) = MirrorFaceTLBR(X, Y);
-                        return
-                            IsValid(xUp - EdgeLength, yUp - EdgeLength, Orientation.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                            IsValid(xDown - EdgeLength, yDown + EdgeLength, Orientation.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
+                        return GetSingleValidCase(
+                            out nextX,
+                            out nextY,
+                            out nextOrientation,
+                            out nextValue,
+                            (xUp - EdgeLength, yUp - EdgeLength, Orientation.RotateClockwise()),
+                            (xDown - EdgeLength, yDown + EdgeLength, Orientation.RotateCounterclockwise())
+                        );
                     }
                     else if (deltaX == 1)
                     {
                         // Right
                         var (xUp, yUp) = MirrorFaceTLBR(X, Y);
                         var (xDown, yDown) = MirrorFaceTRBL(X, Y);
-                        return
-                            IsValid(xUp + EdgeLength, yUp - EdgeLength, Orientation.RotateCounterclockwise(), out nextX, out nextY, out nextOrientation, out nextValue) ||
-                            IsValid(xDown + EdgeLength, yDown + EdgeLength, Orientation.RotateClockwise(), out nextX, out nextY, out nextOrientation, out nextValue);
+                        return GetSingleValidCase(
+                            out nextX,
+                            out nextY,
+                            out nextOrientation,
+                            out nextValue,
+                            (xUp + EdgeLength, yUp - EdgeLength, Orientation.RotateCounterclockwise()),
+                            (xDown + EdgeLength, yDown + EdgeLength, Orientation.RotateClockwise())
+                        );
                     }
                     else
                     {
@@ -375,6 +391,62 @@ namespace AdventOfCode
                 }
 
                 throw new ArgumentException("one of deltaX, deltaY must be zero");
+            }
+
+            bool GetSingleValidCase(
+                out int nextX,
+                out int nextY,
+                out Orientation nextOrientation,
+                out bool nextValue,
+                params (int x, int y, Orientation orientation)[] cases
+            )
+            {
+                nextX = nextY = 0;
+                nextOrientation = Orientation.Right;
+                nextValue = false;
+                var hasFound = false;
+                foreach (var (x, y, orientation) in cases)
+                {
+                    if (IsValid(x, y, orientation, out var nX, out var nY, out var nO, out var nV))
+                    {
+                        if (hasFound)
+                        {
+                            throw new InvalidOperationException("found multiple valid cases");
+                        }
+
+                        hasFound = true;
+                        nextX = nX;
+                        nextY = nY;
+                        nextOrientation = nO;
+                        nextValue = nV;
+                    }
+                }
+
+                return hasFound;
+            }
+
+            bool IsValid(
+                int x,
+                int y,
+                Orientation nextOrientationIn,
+                out int nextX,
+                out int nextY,
+                out Orientation nextOrientation,
+                out bool nextValue
+            )
+            {
+                nextX = x;
+                nextY = y;
+                nextOrientation = nextOrientationIn;
+                var value = GetValue(x, y, map);
+                if (value != null)
+                {
+                    nextValue = value.Value;
+                    return true;
+                }
+
+                nextValue = false;
+                return false;
             }
 
             (int x, int y) MirrorFaceTLBR(int x, int y) => MirrorFaceTLBR(x, y, EdgeLength);
@@ -494,6 +566,18 @@ namespace AdventOfCode
                     2 => Down,
                     3 => Left,
                     _ => throw new InvalidOperationException("invalid orientation")
+                };
+            }
+
+            public override string ToString()
+            {
+                return Value switch
+                {
+                    0 => "Right",
+                    1 => "Down",
+                    2 => "Left",
+                    3 => "Up",
+                    _ => "<Invalid orientation>"
                 };
             }
         }
